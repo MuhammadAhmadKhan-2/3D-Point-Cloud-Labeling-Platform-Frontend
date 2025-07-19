@@ -66,7 +66,7 @@ const AdminDashboardContent: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/auth/logout', {
+      await fetch('https://3-d-point-cloud-labeling-platform-b.vercel.app/api/auth/logout', {
         method: 'POST',
         credentials: 'include'
       });
