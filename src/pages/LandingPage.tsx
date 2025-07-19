@@ -38,6 +38,12 @@ const LandingPage: React.FC = () => {
           </div>
           <div className="flex space-x-4">
             <Link
+              to="/admin"
+              className="px-6 py-2 bg-transparent border border-blue-400 text-blue-400 rounded-lg hover:bg-blue-400 hover:text-white transition-all duration-200"
+            >
+              Admin
+            </Link>
+            <Link
               to="/login"
               className="px-6 py-2 bg-transparent border border-blue-400 text-blue-400 rounded-lg hover:bg-blue-400 hover:text-white transition-all duration-200"
             >
