@@ -6,7 +6,6 @@ A comprehensive admin panel application built with Node.js, Express.js, MongoDB,
 
 ### Authentication System
 - **Secure Admin Login**: Accessible only via `/admin` route
-- **Hardcoded Credentials**: `muhammadahmaddd8@gmail.com` / `12345678`
 - **Session-based Authentication**: Secure middleware with auto-redirect
 - **Account Security**: Login attempt limiting and account locking
 
@@ -28,36 +27,6 @@ A comprehensive admin panel application built with Node.js, Express.js, MongoDB,
 - **Data Validation**: Comprehensive server-side validation with Joi
 - **Error Handling**: Proper HTTP status codes and user feedback
 
-## 📁 Project Structure
-
-```
-├── server/
-│   ├── src/
-│   │   ├── config/
-│   │   │   └── database.js          # MongoDB connection
-│   │   ├── models/
-│   │   │   ├── User.js              # User schema
-│   │   │   └── Admin.js             # Admin schema
-│   │   ├── controllers/
-│   │   │   ├── authController.js    # Authentication logic
-│   │   │   └── userController.js    # User management logic
-│   │   ├── middleware/
-│   │   │   ├── auth.js              # Authentication middleware
-│   │   │   └── validation.js        # Input validation
-│   │   ├── routes/
-│   │   │   ├── authRoutes.js        # Auth endpoints
-│   │   │   ├── userRoutes.js        # User endpoints
-│   │   │   └── index.js             # Route aggregation
-│   │   └── server.js                # Express server
-│   ├── package.json
-│   └── .env
-├── src/
-│   ├── pages/
-│   │   ├── AdminLogin.tsx           # Admin login page
-│   │   └── AdminDashboard.tsx       # Main admin dashboard
-│   └── App.tsx
-└── README.md
-```
 
 ## 🛠 Installation Instructions
 
@@ -120,10 +89,6 @@ SESSION_NAME=admin_session
 PORT=5000
 NODE_ENV=development
 
-# Admin Credentials
-ADMIN_EMAIL=muhammadahmaddd8@gmail.com
-ADMIN_PASSWORD=12345678
-
 # CORS Configuration
 FRONTEND_URL=http://localhost:5173
 ```
@@ -158,14 +123,6 @@ npm run dev
 
 ### Authentication Endpoints
 
-#### POST `/api/auth/login`
-Login admin user
-```json
-{
-  "email": "muhammadahmaddd8@gmail.com",
-  "password": "12345678"
-}
-```
 
 #### POST `/api/auth/logout`
 Logout current admin (requires authentication)
@@ -178,22 +135,9 @@ Get admin profile (requires authentication)
 
 #### PUT `/api/auth/profile`
 Update admin profile (requires authentication)
-```json
-{
-  "name": "Administrator",
-  "email": "admin@example.com"
-}
-```
 
 #### PUT `/api/auth/change-password`
 Change admin password (requires authentication)
-```json
-{
-  "currentPassword": "current123",
-  "newPassword": "newpassword123",
-  "confirmPassword": "newpassword123"
-}
-```
 
 ### User Management Endpoints
 
@@ -206,18 +150,6 @@ Get single user by ID
 
 #### POST `/api/users`
 Create new user (requires authentication)
-```json
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "userType": "CLIENT",
-  "status": "ACTIVE",
-  "company": "Example Corp",
-  "phone": "+1234567890",
-  "department": "Engineering",
-  "notes": "VIP client"
-}
-```
 
 #### PUT `/api/users/:id`
 Update user (requires authentication)
@@ -227,19 +159,10 @@ Delete user (requires authentication)
 
 #### POST `/api/users/bulk-delete`
 Delete multiple users (requires authentication)
-```json
-{
-  "userIds": ["id1", "id2", "id3"]
-}
-```
 
 #### PATCH `/api/users/:id/status`
 Update user status (requires authentication)
-```json
-{
-  "status": "SUSPENDED"
-}
-```
+
 
 ## 🔒 Security Features
 
@@ -302,12 +225,6 @@ lsof -ti:5000 | xargs kill -9
 - Restart both frontend and backend servers
 - Check `.env` file configuration
 
-## 📝 Default Admin Credentials
-
-- **Email**: `muhammadahmaddd8@gmail.com`
-- **Password**: `12345678`
-
-**⚠️ Important**: Change these credentials in production!
 
 ## 🤝 Contributing
 
