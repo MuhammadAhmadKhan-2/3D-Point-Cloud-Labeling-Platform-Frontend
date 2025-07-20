@@ -25,6 +25,9 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   const [pointCount, setPointCount] = useState(0);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  // For now, default to 'front' image. Later, this can be made dynamic.
+  const [imageView, setImageView] = useState<'front' | 'back' | 'left' | 'right' | 'top'>('front');
   const [loadingMessage, setLoadingMessage] = useState('Loading Point Cloud Data...');
   const [fileSize, setFileSize] = useState<string>('');
 
@@ -33,23 +36,42 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
 
     setIsLoading(true);
     setImageLoaded(false);
+    setImageError(null);
 
     // Get assets for this serial
     const assets = getSerialAssets(stage, serialNumber);
-    setImageUrl(assets.imageUrl);
-
-    // Only initialize 3D scene if showing point cloud
-    if (showPointCloud) {
-      initializeThreeJSScene();
+    console.log('[PointCloudViewer] imageView:', imageView, 'assets.images:', assets.images);
+    if (assets.images && assets.images[imageView]) {
+      setImageUrl(assets.images[imageView]);
+      // Only initialize 3D scene if showing point cloud
+      if (showPointCloud) {
+        initializeThreeJSScene();
+      } else {
+        // For image mode, preload the selected image and handle error
+        const testImg = new window.Image();
+        testImg.onload = () => {
+          setImageLoaded(true);
+          setIsLoading(false);
+          console.log('[PointCloudViewer] Image loaded:', assets.images[imageView]);
+        };
+        testImg.onerror = () => {
+          setImageLoaded(false);
+          setIsLoading(false);
+          setImageError('Image not found or failed to load.');
+          console.error('[PointCloudViewer] Image failed to load:', assets.images[imageView]);
+        };
+        testImg.src = assets.images[imageView];
+      }
     } else {
-      // For image mode, just set loading to false after a brief delay
-      setTimeout(() => setIsLoading(false), 500);
+      setImageUrl('');
+      setImageError('Image path is invalid or missing.');
+      setIsLoading(false);
     }
 
     return () => {
       cleanup();
     };
-  }, [serialNumber, frameId, showPointCloud, stage]);
+  }, [serialNumber, frameId, showPointCloud, stage, imageView]);
 
   const cleanup = () => {
     if (animationRef.current) {
@@ -389,21 +411,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     });
 
     return boxes;
-  };
 
   return (
     <div className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden">
       {showPointCloud ? (
-        <>
-          <div ref={mountRef} className="w-full h-full" />
-          
-          {/* Loading overlay */}
-          {isLoading && (
-            <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center backdrop-blur-sm">
-              <div className="text-center">
-                <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
-                <div className="text-white font-medium">{loadingMessage}</div>
-                <div className="text-gray-400 text-sm mt-2">
+        // ...
                   {fileSize || 'Connecting to AWS S3'}
                 </div>
                 {fileSize && (
@@ -417,7 +429,12 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         </>
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gray-900">
-          {imageUrl ? (
+          {imageError ? (
+            <div className="text-red-400 text-center">
+              <div className="text-lg mb-2">{imageError}</div>
+              <div className="text-sm">Serial: {serialNumber}</div>
+            </div>
+          ) : imageUrl ? (
             <img 
               src={imageUrl} 
               alt={`Serial ${serialNumber}`}
@@ -426,11 +443,10 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
                 setImageLoaded(true);
                 setIsLoading(false);
               }}
-              onError={(e) => {
-                // Fallback to placeholder if image fails to load
-                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzc0MTUxIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIE5vdCBGb3VuZDwvdGV4dD48L3N2Zz4=';
-                setImageLoaded(true);
+              onError={() => {
+                setImageLoaded(false);
                 setIsLoading(false);
+                setImageError('Image not found or failed to load.');
               }}
             />
           ) : (

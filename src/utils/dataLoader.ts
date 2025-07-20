@@ -10,9 +10,15 @@ export interface PointCloudData {
 
 export interface SerialAssets {
   pointCloudUrl: string
-  imageUrl: string
-  exists: boolean
-  company: string // Add company identifier
+  images: {
+    front: string;
+    back: string;
+    left: string;
+    right: string;
+    top: string;
+  };
+  exists: boolean;
+  company: string; // Add company identifier
 }
 
 /**
@@ -39,7 +45,13 @@ export const getSerialAssets = (
 
   return {
     pointCloudUrl: `${basePath}/pointcloud.ply`,
-    imageUrl: `${basePath}/image.jpg`,
+    images: {
+      front: `${basePath}/front.jpg`,
+      back: `${basePath}/back.jpg`,
+      left: `${basePath}/left.jpg`,
+      right: `${basePath}/right.jpg`,
+      top: `${basePath}/top.jpg`,
+    },
     exists: true,
     company: companyName,
   }
@@ -233,9 +245,11 @@ export const preloadSerialAssets = async (
 ): Promise<void> => {
   const assets = getSerialAssets(stage, serialNumber, company)
 
-  // Preload image
-  const img = new Image()
-  img.src = assets.imageUrl
+  // Preload all 5 images
+  Object.values(assets.images).forEach((url) => {
+    const img = new Image();
+    img.src = url;
+  });
 }
 
 export const validateDataIntegrity = async (
@@ -265,16 +279,18 @@ export const validateDataIntegrity = async (
       missingFiles.push(assets.pointCloudUrl)
     }
 
-    // Check image file
-    try {
-      const imgResponse = await fetch(assets.imageUrl, { method: "HEAD" })
-      if (imgResponse.ok) {
-        imageFiles++
-      } else {
-        missingFiles.push(assets.imageUrl)
+    // Check all 5 image files
+    for (const [key, url] of Object.entries(assets.images)) {
+      try {
+        const imgResponse = await fetch(url, { method: "HEAD" });
+        if (imgResponse.ok) {
+          imageFiles++;
+        } else {
+          missingFiles.push(url);
+        }
+      } catch {
+        missingFiles.push(url);
       }
-    } catch {
-      missingFiles.push(assets.imageUrl)
     }
   }
 
