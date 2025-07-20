@@ -41,7 +41,7 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
             <div>
-              <div className="flex items-center space-x-3 mb-1">
+              <div className="flex items-center space-x-3 mb-1 mt-10">
                 <h1 className="text-2xl font-bold text-blue-400">{stage.name} Stage</h1>
                
               </div>
