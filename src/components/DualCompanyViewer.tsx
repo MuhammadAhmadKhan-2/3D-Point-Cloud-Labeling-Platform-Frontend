@@ -28,7 +28,8 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState<{ [key: string]: number }>({})
   const [pointCounts, setPointCounts] = useState<{ [key: string]: number }>({})
-  const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({})
+  // Store 5 image URLs per company (front, back, left, right, top)
+  const [imageUrls, setImageUrls] = useState<{ [company: string]: { [view: string]: string } }>({})
   const [imageLoaded, setImageLoaded] = useState<{ [key: string]: boolean }>({})
   const [loadingMessage, setLoadingMessage] = useState("Loading Dual Company Data...")
   const [fileSizes, setFileSizes] = useState<{ [key: string]: string }>({})
@@ -51,9 +52,21 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
 
     // Get assets for both companies
     const assets = getDualCompanyAssets(serialNumber)
+    // Helper to generate 5 image urls given base image url (assumes naming convention)
+    const generateImageSet = (baseUrl: string) => {
+      const baseWithoutExt = baseUrl.replace(/\.[^/.]+$/, "")
+      return {
+        front: `${baseWithoutExt}-front.jpg`,
+        back: `${baseWithoutExt}-back.jpg`,
+        left: `${baseWithoutExt}-left.jpg`,
+        right: `${baseWithoutExt}-right.jpg`,
+        top: `${baseWithoutExt}-top.jpg`,
+      }
+    }
+
     setImageUrls({
-      "Original Source Factory Corporation": assets.originalSource.imageUrl,
-      "Metabread Co., Ltd.": assets.kr.imageUrl,
+      "Original Source Factory Corporation": generateImageSet(assets.originalSource.imageUrl),
+      "Metabread Co., Ltd.": generateImageSet(assets.kr.imageUrl),
     })
 
     if (showPointCloud) {
@@ -531,27 +544,37 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   )
 
   if (!showPointCloud) {
+    const views = ["front", "back", "left", "right", "top"];
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900">
-        <div className="grid grid-cols-2 gap-4 w-full h-full p-4">
-          {Object.entries(imageUrls).map(([company, url]) => (
-            <div key={company} className="relative bg-gray-800 rounded-lg overflow-hidden">
-              <div className="absolute top-2 left-2 bg-black/80 px-2 py-1 rounded text-white text-xs">{company}</div>
-              <img
-                src={url || "/placeholder.svg"}
-                alt={`${company} - Serial ${serialNumber}`}
-                className="w-full h-full object-contain"
-                onLoad={() => setImageLoaded((prev) => ({ ...prev, [company]: true }))}
-                onError={(e) => {
-                  e.currentTarget.src =
-                    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzc0MTUxIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIE5vdCBGb3VuZDwvdGV4dD48L3N2Zz4="
-                }}
-              />
+      <div className="w-full h-full flex items-center justify-center bg-gray-900 overflow-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 w-full h-full p-4">
+          {Object.entries(imageUrls).map(([company, urls]) => (
+            <div key={company} className="bg-gray-800 rounded-lg p-4 shadow-lg ring-1 ring-gray-700/50 flex flex-col">
+              <h3 className="text-center text-base font-semibold text-white mb-4 border-b border-gray-700 pb-2">{company}</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 flex-1">
+                {views.map((view) => (
+                  <div key={view} className="relative pt-[56.25%] bg-gray-900 rounded-lg overflow-hidden group">
+                    <img
+                      src={urls[view] || "/placeholder.svg"}
+                      alt={`${company} ${view}`}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      onLoad={() => setImageLoaded((prev) => ({ ...prev, [`${company}-${view}`]: true }))}
+                      onError={(e) => {
+                        e.currentTarget.src =
+                          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzc0MTUxIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIE5vdCBGb3VuZDwvdGV4dD48L3N2Zz4=";
+                      }}
+                    />
+                    <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[10px] px-2 py-0.5 rounded backdrop-blur-sm">
+                      {view}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
       </div>
-    )
+    );
   }
 
   return (
