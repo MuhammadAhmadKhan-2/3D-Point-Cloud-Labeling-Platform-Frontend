@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { LogOut, CheckCircle, CuboidIcon as Cube, Play, ArrowRight, BarChart3, Eye, Shield } from "lucide-react"
 import { useAuth } from "../../hooks/useAuth"
-import { StageInterface } from "../../components/StageInterface"
+import { QAQCStageInterface } from "../../components/QAQCStageInterface"
 import { serialDataBothCompanies } from "../../data/mockData"
 
 const QAQCVendorDashboard: React.FC = () => {
@@ -47,7 +47,7 @@ const QAQCVendorDashboard: React.FC = () => {
           <ArrowRight className="w-4 h-4 rotate-180" />
           <span>Back to Dashboard</span>
         </button>
-        <StageInterface stage={mockStage} serialData={serialDataBothCompanies} />
+        <QAQCStageInterface stage={mockStage} serialData={serialDataBothCompanies} />
       </div>
     )
   }
@@ -89,7 +89,7 @@ const QAQCVendorDashboard: React.FC = () => {
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-white tracking-wide">QA/QC Vendor Dashboard</h1>
-                  <p className="text-blue-300">Welcome, {user?.name || "User"} - Dual Company Quality Control</p>
+                  <p className="text-blue-300">Welcome, {user?.name || "User"} - Dual Quality Control</p>
                 </div>
               </div>
               <button
@@ -114,9 +114,9 @@ const QAQCVendorDashboard: React.FC = () => {
                     <Cube className="w-10 h-10 text-green-400 animate-bounce" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold text-white mb-2">Dual Company Quality Control Interface</h2>
+                    <h2 className="text-3xl font-bold text-white mb-2">Dual Quality Control Interface</h2>
                     <p className="text-green-300 text-lg">
-                      Cross-validation and comparative analysis between Original Source Factory Corporation & Metabread Co., Ltd.
+                      Cross-validation and comparative analysis
                     </p>
                   </div>
                 </div>
