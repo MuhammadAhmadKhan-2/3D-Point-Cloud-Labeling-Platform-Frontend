@@ -78,7 +78,7 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
                 }}
               >
                 <option value="">Select Serial Number</option>
-                {Object.entries(groupedSerials).map(([serialNumber, serials]) => (
+                {Object.entries(groupedSerials).sort(([a], [b]) => b.localeCompare(a)).map(([serialNumber, serials]) => (
                   <optgroup key={serialNumber} label={`Serial ${serialNumber}`}>
                     {serials.map((serial) => (
                       <option key={serial.id} value={serial.id}>
