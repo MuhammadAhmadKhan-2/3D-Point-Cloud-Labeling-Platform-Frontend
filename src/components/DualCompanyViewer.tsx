@@ -551,7 +551,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
           {Object.entries(imageUrls).map(([company, urls]) => (
             <div key={company} className="bg-gray-800 rounded-lg p-4 shadow-lg ring-1 ring-gray-700/50 flex flex-col">
               <h3 className="text-center text-base font-semibold text-white mb-4 border-b border-gray-700 pb-2">{company}</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 flex-1">
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-3 flex-1">
                 {views.map((view) => (
                   <div key={view} className="relative pt-[56.25%] bg-gray-900 rounded-lg overflow-hidden group">
                     <img
