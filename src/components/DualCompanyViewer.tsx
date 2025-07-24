@@ -542,25 +542,25 @@ const cleanup = () => {
       <div className="flex space-x-2">
         <button
           onClick={() => onViewModeChange("single-original")}
-          className={`p-2 rounded-lg border transition-colors ${
+          className={`p-3 rounded-lg border transition-colors ${
             viewMode === "single-original"
               ? "bg-red-600 border-red-500 text-white"
               : "bg-black/80 border-gray-700 text-gray-300 hover:bg-black/90"
           }`}
           title="Show Only: Original Source Factory Corporation"
         >
-          <span className="font-bold">Original</span>
+          <span className="font-bold">1st</span>
         </button>
         <button
           onClick={() => onViewModeChange("single-kr")}
-          className={`p-2 rounded-lg border transition-colors ${
+          className={`p-3 rounded-lg border transition-colors ${
             viewMode === "single-kr"
               ? "bg-blue-600 border-blue-500 text-white"
               : "bg-black/80 border-gray-700 text-gray-300 hover:bg-black/90"
           }`}
           title="Show Only: Metabread Co., Ltd."
         >
-          <span className="font-bold">Metabread</span>
+          <span className="font-bold">2nd</span>
         </button>
 
       </div>
@@ -630,7 +630,7 @@ const cleanup = () => {
                   : Object.entries(imageUrls)
             ).map(([company, urls]) => (
             <div key={company} className="bg-gray-800 rounded-lg p-4 shadow-lg ring-1 ring-gray-700/50 flex flex-col">
-              <h3 className="text-center text-base font-semibold text-white mb-4 border-b border-gray-700 pb-2">{company}</h3>
+              
               <div className="grid grid-cols-2 md:grid-cols-2 gap-3 flex-1">
                 {views.map((view) => {
                   const errorKey = `${company}-${view}`;

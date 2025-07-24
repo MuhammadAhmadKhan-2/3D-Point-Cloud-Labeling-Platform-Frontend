@@ -79,9 +79,10 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
           <div className="flex items-center space-x-3 mx-4">
             <div className="relative">
               <select
-                className="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+                className={`bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 appearance-none min-w-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 transition-opacity ${!showPointCloud ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 value={selectedSerial?.id || ""}
                 onChange={(e) => {
+                  if (!showPointCloud) return;
                   const serial = serialData.find((s) => s.id === e.target.value)
                   setSelectedSerial(serial || null)
                   setCurrentFrame(1)
