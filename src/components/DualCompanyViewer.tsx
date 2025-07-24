@@ -3,6 +3,7 @@
 import type React from "react"
 import { useRef, useEffect, useState } from "react"
 import * as THREE from "three"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 import { Maximize2, RotateCcw, Download, Settings, Eye, Split, Layers } from "lucide-react"
 import { getDualCompanyAssets, getSerialAssets, loadDualCompanyPointClouds, type PointCloudData } from "../utils/dataLoader"
 
@@ -386,22 +387,20 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   }
 
   const startAnimation = (camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, scene: THREE.Scene) => {
-    let time = 0
+    // Add OrbitControls for user interaction
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.05
+    controls.screenSpacePanning = false
+    controls.autoRotate = false // Disable auto-rotation
+    controls.enableZoom = true
+    controls.enablePan = true
+
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
-
-      time += 0.005
-
-      const radius = 20
-      const offsetX = -8
-      camera.position.x = Math.cos(time) * radius + offsetX
-      camera.position.z = Math.sin(time) * radius
-      camera.position.y = 6 + Math.sin(time * 0.5) * 2
-      camera.lookAt(0, 0, 0)
-
+      controls.update()
       renderer.render(scene, camera)
     }
-
     animate()
   }
 
@@ -413,27 +412,30 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     rightRenderer: THREE.WebGLRenderer,
     rightScene: THREE.Scene,
   ) => {
-    let time = 0
+    // Add OrbitControls for both viewers
+    const leftControls = new OrbitControls(leftCamera, leftRenderer.domElement)
+    leftControls.enableDamping = true
+    leftControls.dampingFactor = 0.05
+    leftControls.screenSpacePanning = false
+    leftControls.autoRotate = false // Disable auto-rotation
+    leftControls.enableZoom = true
+    leftControls.enablePan = true
+
+    const rightControls = new OrbitControls(rightCamera, rightRenderer.domElement)
+    rightControls.enableDamping = true
+    rightControls.dampingFactor = 0.05
+    rightControls.screenSpacePanning = false
+    rightControls.autoRotate = false // Disable auto-rotation
+    rightControls.enableZoom = true
+    rightControls.enablePan = true
+
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
-
-      time += 0.005
-
-      const radius = 20
-      const offsetX = -8
-
-      // Synchronize camera movements
-      ;[leftCamera, rightCamera].forEach((camera) => {
-        camera.position.x = Math.cos(time) * radius + offsetX
-        camera.position.z = Math.sin(time) * radius
-        camera.position.y = 6 + Math.sin(time * 0.5) * 2
-        camera.lookAt(0, 0, 0)
-      })
-
+      leftControls.update()
+      rightControls.update()
       leftRenderer.render(leftScene, leftCamera)
       rightRenderer.render(rightScene, rightCamera)
     }
-
     animate()
   }
 
