@@ -539,7 +539,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   )
 
   if (!showPointCloud) {
-    const views = ["front", "back", "left", "right", "top"];
+    const views = ["front", "back", "front-right", "front-left", "back-right", "back-left"];
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-900 overflow-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 w-full h-full p-4">

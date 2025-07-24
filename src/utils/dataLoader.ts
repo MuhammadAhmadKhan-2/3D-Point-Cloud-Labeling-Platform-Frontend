@@ -13,9 +13,10 @@ export interface SerialAssets {
   images: {
     front: string;
     back: string;
-    left: string;
-    right: string;
-    top: string;
+    "front-right": string;
+    "front-left": string;
+    "back-right": string;
+    "back-left": string;
   };
   exists: boolean;
   company: string; // Add company identifier
@@ -48,9 +49,10 @@ export const getSerialAssets = (
     images: {
       front: `${basePath}/front.jpg`,
       back: `${basePath}/back.jpg`,
-      left: `${basePath}/left.jpg`,
-      right: `${basePath}/right.jpg`,
-      top: `${basePath}/top.jpg`,
+      "front-right": `${basePath}/front-right.jpg`,
+      "front-left": `${basePath}/front-left.jpg`,
+      "back-right": `${basePath}/back-right.jpg`,
+      "back-left": `${basePath}/back-left.jpg`,
     },
     exists: true,
     company: companyName,
@@ -279,7 +281,7 @@ export const validateDataIntegrity = async (
       missingFiles.push(assets.pointCloudUrl)
     }
 
-    // Check all 5 image files
+    // Check all 6 image files
     for (const [key, url] of Object.entries(assets.images)) {
       try {
         const imgResponse = await fetch(url, { method: "HEAD" });
