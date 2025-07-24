@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useLayoutEffect, useState } from "react"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 import { Maximize2, RotateCcw, Download, Settings, Eye, Split, Layers } from "lucide-react"
@@ -76,34 +76,78 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     }
   }, [serialNumber, frameId, showPointCloud, viewMode])
 
-  const cleanup = () => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current)
-    }
-    ;[singleRendererRef, leftRendererRef, rightRendererRef].forEach((rendererRef, index) => {
-      if (rendererRef.current) {
-        const mountElement = index === 0 ? mountRef.current : index === 1 ? leftMountRef.current : rightMountRef.current
-        if (mountElement && rendererRef.current.domElement) {
-          mountElement.removeChild(rendererRef.current.domElement)
-        }
-        rendererRef.current.dispose()
-        rendererRef.current = null
-      }
-    })
-    ;[singleSceneRef, leftSceneRef, rightSceneRef].forEach((sceneRef) => {
-      if (sceneRef.current) {
-        sceneRef.current.clear()
-        sceneRef.current = null
-      }
-    })
+  // Add refs to track OrbitControls for proper disposal
+const singleControlsRef = useRef<any>(null)
+const leftControlsRef = useRef<any>(null)
+const rightControlsRef = useRef<any>(null)
+
+const cleanup = () => {
+  if (animationRef.current) {
+    cancelAnimationFrame(animationRef.current)
   }
 
+  // Dispose OrbitControls explicitly
+  if (singleControlsRef.current) {
+    singleControlsRef.current.dispose()
+    singleControlsRef.current = null
+  }
+  if (leftControlsRef.current) {
+    leftControlsRef.current.dispose()
+    leftControlsRef.current = null
+  }
+  if (rightControlsRef.current) {
+    rightControlsRef.current.dispose()
+    rightControlsRef.current = null
+  }
+
+  // Explicitly clear all mount containers to prevent leftover renderers/controls
+  if (mountRef.current) {
+    while (mountRef.current.firstChild) {
+      mountRef.current.removeChild(mountRef.current.firstChild);
+    }
+  }
+  if (leftMountRef.current) {
+    while (leftMountRef.current.firstChild) {
+      leftMountRef.current.removeChild(leftMountRef.current.firstChild);
+    }
+  }
+  if (rightMountRef.current) {
+    while (rightMountRef.current.firstChild) {
+      rightMountRef.current.removeChild(rightMountRef.current.firstChild);
+    }
+  }
+  ;[singleRendererRef, leftRendererRef, rightRendererRef].forEach((rendererRef, index) => {
+    if (rendererRef.current) {
+      const mountElement = index === 0 ? mountRef.current : index === 1 ? leftMountRef.current : rightMountRef.current
+      if (mountElement && rendererRef.current.domElement) {
+        // Already removed above, but just in case
+        try { mountElement.removeChild(rendererRef.current.domElement) } catch { }
+      }
+      rendererRef.current.dispose()
+      rendererRef.current = null
+    }
+  })
+  ;[singleSceneRef, leftSceneRef, rightSceneRef].forEach((sceneRef) => {
+    if (sceneRef.current) {
+      sceneRef.current.clear()
+      sceneRef.current = null
+    }
+  })
+}
+
+
   const initializeDualVisualization = async () => {
+    console.log('[DualCompanyViewer] initializeDualVisualization - viewMode:', viewMode)
     cleanup()
+    
+    // Add a small delay to ensure cleanup is complete before initializing new view
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     if (viewMode === "split") {
+      console.log('[DualCompanyViewer] Initializing split view')
       await initializeSplitView()
     } else {
+      console.log('[DualCompanyViewer] Initializing single view')
       await initializeSingleView()
     }
   }
@@ -166,7 +210,36 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   }
 
   const initializeSplitView = async () => {
-    if (!leftMountRef.current || !rightMountRef.current) return
+    console.log('[DualCompanyViewer] initializeSplitView - leftMountRef:', leftMountRef.current, 'rightMountRef:', rightMountRef.current)
+    
+    // Wait for DOM elements and their dimensions to be ready
+    let retries = 0;
+    while (retries < 20) {
+      if (
+        leftMountRef.current &&
+        rightMountRef.current &&
+        leftMountRef.current.clientWidth > 0 &&
+        rightMountRef.current.clientWidth > 0 &&
+        leftMountRef.current.clientHeight > 0 &&
+        rightMountRef.current.clientHeight > 0
+      ) {
+        break;
+      }
+      console.log(`[DualCompanyViewer] Waiting for split view mount refs/dimensions, retry ${retries + 1}`)
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      retries++
+    }
+
+    if (
+      !leftMountRef.current ||
+      !rightMountRef.current ||
+      leftMountRef.current.clientWidth === 0 ||
+      rightMountRef.current.clientWidth === 0
+    ) {
+      console.error('[DualCompanyViewer] Split view mount refs/dimensions not ready after retries');
+      setIsLoading(false); // prevent infinite loading overlay
+      return
+    }
 
     // Initialize left scene (Original Source Factory Corporation)
     const leftScene = new THREE.Scene()
@@ -218,18 +291,26 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     // Add Original Source Factory Corporation data to left scene
     if (dualData.originalSource) {
       const leftPointCloud = await createPointCloudFromData(dualData.originalSource, "Original Source Factory Corporation")
-      if (leftPointCloud) leftScene.add(leftPointCloud)
+      if (leftPointCloud) {
+        leftPointCloud.position.x = -5; // shift left cloud to left side
+        leftScene.add(leftPointCloud);
+      }
     } else {
       const fallbackLeft = createFallbackPointCloud("Original Source Factory Corporation")
+      fallbackLeft.position.x = -5;
       leftScene.add(fallbackLeft)
     }
 
     // Add Metabread Co., Ltd. data to right scene
     if (dualData.kr) {
       const rightPointCloud = await createPointCloudFromData(dualData.kr, "Metabread Co., Ltd.")
-      if (rightPointCloud) rightScene.add(rightPointCloud)
+      if (rightPointCloud) {
+        rightPointCloud.position.x = 5; // shift right cloud to right side
+        rightScene.add(rightPointCloud);
+      }
     } else {
       const fallbackRight = createFallbackPointCloud("Metabread Co., Ltd.")
+      fallbackRight.position.x = 5;
       rightScene.add(fallbackRight)
     }
     // Add grids to both scenes
@@ -387,6 +468,11 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   }
 
   const startAnimation = (camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, scene: THREE.Scene) => {
+    // Dispose any previous controls
+    if (singleControlsRef.current) {
+      singleControlsRef.current.dispose();
+      singleControlsRef.current = null;
+    }
     // Add OrbitControls for user interaction
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
@@ -395,6 +481,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     controls.autoRotate = false // Disable auto-rotation
     controls.enableZoom = true
     controls.enablePan = true
+    singleControlsRef.current = controls;
 
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
@@ -412,6 +499,15 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     rightRenderer: THREE.WebGLRenderer,
     rightScene: THREE.Scene,
   ) => {
+    // Dispose any previous controls
+    if (leftControlsRef.current) {
+      leftControlsRef.current.dispose();
+      leftControlsRef.current = null;
+    }
+    if (rightControlsRef.current) {
+      rightControlsRef.current.dispose();
+      rightControlsRef.current = null;
+    }
     // Add OrbitControls for both viewers
     const leftControls = new OrbitControls(leftCamera, leftRenderer.domElement)
     leftControls.enableDamping = true
@@ -420,6 +516,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     leftControls.autoRotate = false // Disable auto-rotation
     leftControls.enableZoom = true
     leftControls.enablePan = true
+    leftControlsRef.current = leftControls;
 
     const rightControls = new OrbitControls(rightCamera, rightRenderer.domElement)
     rightControls.enableDamping = true
@@ -428,6 +525,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     rightControls.autoRotate = false // Disable auto-rotation
     rightControls.enableZoom = true
     rightControls.enablePan = true
+    rightControlsRef.current = rightControls;
 
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
@@ -449,9 +547,9 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
               ? "bg-red-600 border-red-500 text-white"
               : "bg-black/80 border-gray-700 text-gray-300 hover:bg-black/90"
           }`}
-          title="Original Source Factory Corporation Only"
+          title="Show Only: Original Source Factory Corporation"
         >
-          <Eye className="w-4 h-4" />
+          <span className="font-bold">Original</span>
         </button>
         <button
           onClick={() => onViewModeChange("single-kr")}
@@ -460,32 +558,11 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
               ? "bg-blue-600 border-blue-500 text-white"
               : "bg-black/80 border-gray-700 text-gray-300 hover:bg-black/90"
           }`}
-          title="Metabread Co., Ltd. Only"
+          title="Show Only: Metabread Co., Ltd."
         >
-          <Settings className="w-4 h-4" />
+          <span className="font-bold">Metabread</span>
         </button>
-        <button
-          onClick={() => onViewModeChange("split")}
-          className={`p-2 rounded-lg border transition-colors ${
-            viewMode === "split"
-              ? "bg-green-600 border-green-500 text-white"
-              : "bg-black/80 border-gray-700 text-gray-300 hover:bg-black/90"
-          }`}
-          title="Split View"
-        >
-          <Split className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => onViewModeChange("overlay")}
-          className={`p-2 rounded-lg border transition-colors ${
-            viewMode === "overlay"
-              ? "bg-purple-600 border-purple-500 text-white"
-              : "bg-black/80 border-gray-700 text-gray-300 hover:bg-black/90"
-          }`}
-          title="Overlay View"
-        >
-          <Layers className="w-4 h-4" />
-        </button>
+
       </div>
 
       {/* Standard controls */}
@@ -544,8 +621,14 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     const views = ["front", "back", "front-right", "front-left", "back-right", "back-left"];
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-900 overflow-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 w-full h-full p-4">
-          {Object.entries(imageUrls).map(([company, urls]) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 p-4">
+          {(
+              viewMode === "single-original"
+                ? Object.entries(imageUrls).filter(([c]) => c === "Original Source Factory Corporation")
+                : viewMode === "single-kr"
+                  ? Object.entries(imageUrls).filter(([c]) => c === "Metabread Co., Ltd.")
+                  : Object.entries(imageUrls)
+            ).map(([company, urls]) => (
             <div key={company} className="bg-gray-800 rounded-lg p-4 shadow-lg ring-1 ring-gray-700/50 flex flex-col">
               <h3 className="text-center text-base font-semibold text-white mb-4 border-b border-gray-700 pb-2">{company}</h3>
               <div className="grid grid-cols-2 md:grid-cols-2 gap-3 flex-1">
@@ -585,11 +668,14 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
           ))}
         </div>
       </div>
-    );
+           );
   }
 
+  console.log('[DualCompanyViewer] Rendering with viewMode:', viewMode)
+  
   return (
     <div className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden">
+      {/* Only render the correct containers for each mode to avoid overlap and leftover canvases */}
       {viewMode === "split" ? (
         <div className="flex w-full h-full">
           <div className="w-1/2 relative border-r border-gray-700">
@@ -606,6 +692,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
       ) : (
         <div ref={mountRef} className="w-full h-full" />
       )}
+      {/* End conditional view containers */}
 
       {isLoading && (
         <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center backdrop-blur-sm">
@@ -626,3 +713,4 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     </div>
   )
 }
+

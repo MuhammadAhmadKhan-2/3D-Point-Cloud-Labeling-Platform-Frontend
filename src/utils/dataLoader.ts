@@ -69,8 +69,8 @@ export const getDualCompanyAssets = (
   kr: SerialAssets
 } => {
   return {
-    originalSource: getSerialAssets("preprocessing", serialNumber, "Original Source Corporation"),
-    kr: getSerialAssets("refinement", serialNumber, "KR"),
+    originalSource: getSerialAssets("preprocessing", serialNumber, "Original Source Factory Corporation"),
+    kr: getSerialAssets("refinement", serialNumber, "Metabread Co., Ltd."),
   }
 }
 
@@ -138,10 +138,10 @@ export const loadDualCompanyPointClouds = async (
   const assets = getDualCompanyAssets(serialNumber)
 
   const [originalSourceData, krData] = await Promise.all([
-    loadPointCloudData(assets.originalSource.pointCloudUrl, "Original Source Corporation", (progress) =>
-      onProgress?.("Original Source Corporation", progress),
+    loadPointCloudData(assets.originalSource.pointCloudUrl, "Original Source Factory Corporation", (progress) =>
+      onProgress?.("Original Source Factory Corporation", progress),
     ),
-    loadPointCloudData(assets.kr.pointCloudUrl, "KR", (progress) => onProgress?.("KR", progress)),
+    loadPointCloudData(assets.kr.pointCloudUrl, "Metabread Co., Ltd.", (progress) => onProgress?.("Metabread Co., Ltd.", progress)),
   ])
 
   return {

@@ -17,7 +17,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [currentFrame, setCurrentFrame] = useState(1)
   const [showPointCloud, setShowPointCloud] = useState(true)
   const [selectedFunction, setSelectedFunction] = useState(0)
-  const [viewMode, setViewMode] = useState<"single-original" | "single-kr" | "split" | "overlay">("split")
+  const [viewMode, setViewMode] = useState<"single-original" | "single-kr" | "split" | "overlay">("single-original")
   
   // Post-processing feature states
   const [isNoiseRemovalActive, setIsNoiseRemovalActive] = useState(false)
@@ -29,6 +29,16 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [activeProcessing, setActiveProcessing] = useState<string | null>(null)
 
   const frameData = selectedSerial ? generateFrameData(selectedSerial.serialNumber) : []
+
+  // Determine which company's data to show based on current view mode
+  const companyForView = viewMode === "single-kr" ? "Metabread Co., Ltd." : "Original Source Factory Corporation";
+  const displayedSerial = selectedSerial
+    ? viewMode.includes("single")
+      ? serialData.find(
+          (s) => s.serialNumber === selectedSerial.serialNumber && s.company === companyForView,
+        ) || selectedSerial
+      : selectedSerial
+    : null
 
   // Helper functions for fake processing effects
   const simulateProcessing = (processName: string, duration: number = 3000) => {
@@ -140,15 +150,13 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                 }}
               >
                 <option value="">Select Serial Number</option>
-                {Object.entries(groupedSerials).sort(([a], [b]) => b.localeCompare(a)).map(([serialNumber, serials]) => (
-                  <optgroup key={serialNumber} label={`Serial ${serialNumber}`}>
-                    {serials.map((serial) => (
-                      <option key={serial.id} value={serial.id}>
-                        {serial.company}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
+                {Object.entries(groupedSerials)
+                  .sort(([a], [b]) => b.localeCompare(a))
+                  .map(([serialNumber, serials]) => (
+                    <option key={serialNumber} value={serials[0].id}>
+                      {serialNumber}
+                    </option>
+                  ))}
               </select>
               <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
@@ -173,7 +181,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
         </div>
       </div>
       {/* Main content remains unchanged for now */}
-      {selectedSerial ? (
+      {displayedSerial ? (
         <div className="flex h-[calc(100vh-120px)]">
           {/* Enhanced Left Sidebar with dual company info */}
           <div className="w-80 bg-gray-800 border-r border-gray-700 p-4 overflow-y-auto">
@@ -186,7 +194,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Serial:</span>
-                  <span className="font-mono text-blue-300">{selectedSerial.serialNumber}</span>
+                  <span className="font-mono text-blue-300">{displayedSerial.serialNumber}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Company:</span>
@@ -197,12 +205,12 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                         : "bg-red-600/30 text-red-400 border border-red-500/30"
                     }`}
                   >
-                    {selectedSerial.company}
+                    {displayedSerial.company}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Duration:</span>
-                  <span className="text-right text-gray-200">{selectedSerial.workingDuration}</span>
+                  <span className="text-right text-gray-200">{displayedSerial.workingDuration}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Status:</span>
@@ -217,56 +225,23 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                             : "bg-gray-600/30 text-gray-400 border border-gray-500/30"
                     }`}
                   >
-                    {selectedSerial.status}
+                    {displayedSerial.status}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Invoice:</span>
-                  <span className="font-mono text-gray-200">{selectedSerial.invoiceNumber}</span>
+                  <span className="font-mono text-gray-200">{displayedSerial.invoiceNumber}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Amount:</span>
                   <span className="text-green-400 font-semibold">
-                    ${selectedSerial.deliveryAmount.toLocaleString()}
+                    ${displayedSerial.deliveryAmount.toLocaleString()}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Company Comparison Panel */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-blue-400 mb-3">Company Comparison</h3>
-              <div className="space-y-2">
-                {Object.entries(groupedSerials)
-                  .filter(([serialNumber]) => serialNumber === selectedSerial.serialNumber)
-                  .map(([serialNumber, serials]) => (
-                    <div key={serialNumber} className="bg-gray-700/50 rounded-lg p-3">
-                      <div className="text-sm font-medium text-white mb-2">Serial {serialNumber}</div>
-                      {serials.map((serial) => (
-                        <div
-                          key={serial.id}
-                          className={`flex items-center justify-between p-2 rounded ${
-                            serial.id === selectedSerial.id ? "bg-blue-600/30" : "bg-gray-600/30"
-                          }`}
-                        >
-                          <span className="text-gray-300 text-sm">{serial.company}</span>
-                          <span
-                            className={`text-xs px-2 py-1 rounded ${
-                              serial.status === "Completed"
-                                ? "bg-green-600/30 text-green-400"
-                                : serial.status === "In Progress"
-                                  ? "bg-blue-600/30 text-blue-400"
-                                  : "bg-yellow-600/30 text-yellow-400"
-                            }`}
-                          >
-                            {serial.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-              </div>
-            </div>
+           
 
             {/* Post-Processing Features Panel */}
             <div className="mb-6">
@@ -558,7 +533,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
           <div className="flex-1 p-4">
             <div className="h-full bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
               <DualCompanyViewer
-                serialNumber={selectedSerial.serialNumber}
+                serialNumber={displayedSerial.serialNumber}
                 frameId={currentFrame}
                 showPointCloud={showPointCloud}
                 viewMode={viewMode}
