@@ -18,8 +18,11 @@ import {
   X,
   Check,
   AlertCircle,
-  Bell
+  Bell,
+  FileText
 } from 'lucide-react';
+
+import SerialManager from '../components/SerialManager';
 
 interface Stats {
   total: number;
@@ -113,6 +116,7 @@ const AdminDashboardContent: React.FC = () => {
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'serials', label: 'Point Cloud Management', icon: FileText },
     { id: 'profile', label: 'Profile Settings', icon: LucideUser },
     { id: 'settings', label: 'System Settings', icon: Settings },
   ];
@@ -178,7 +182,7 @@ const AdminDashboardContent: React.FC = () => {
                     }`}
                   >
                     <Icon className="w-5 h-5" />
-                    {sidebarOpen && <span>{item.label}</span>}
+                    {sidebarOpen && <span className="truncate">{item.label}</span>}
                   </button>
                 );
               })}
@@ -459,6 +463,10 @@ const AdminDashboardContent: React.FC = () => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'serials' && (
+              <SerialManager />
             )}
 
             {activeTab === 'profile' && (

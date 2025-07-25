@@ -20,8 +20,10 @@ import {
   Trash2,
   Edit,
   Eye,
-  Plus
+  Plus,
+  FileText
 } from 'lucide-react';
+import SerialManager from '../components/SerialManager';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
@@ -177,6 +179,7 @@ const AdminPanel: React.FC = () => {
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'pending', label: 'Pending Requests', icon: Clock, badge: notifications },
+    { id: 'serials', label: 'Serials', icon: FileText },
     { id: 'analytics', label: 'Analytics', icon: Database },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -275,6 +278,7 @@ const AdminPanel: React.FC = () => {
                   {activeTab === 'pending' && 'Pending Requests'}
                   {activeTab === 'analytics' && 'Analytics'}
                   {activeTab === 'settings' && 'Settings'}
+                  {activeTab === 'serials' && 'Serials'}
                 </h1>
               </div>
 
@@ -490,6 +494,10 @@ const AdminPanel: React.FC = () => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'serials' && (
+              <SerialManager />
             )}
 
             {activeTab === 'analytics' && (
