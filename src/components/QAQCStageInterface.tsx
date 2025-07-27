@@ -530,7 +530,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
           </div>
 
           {/* Enhanced Main Content with Dual Company Viewer */}
-          <div className="flex-1 p-4">
+          <div className="flex-1 p-4 w-[50%]">
             <div className="h-full bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
               <DualCompanyViewer
                 serialNumber={displayedSerial.serialNumber}

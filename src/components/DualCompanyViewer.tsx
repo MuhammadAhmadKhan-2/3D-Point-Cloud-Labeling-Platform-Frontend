@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useRef, useEffect, useLayoutEffect, useState } from "react"
+import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react"
 import * as THREE from "three"
+// @ts-ignore
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 import { Maximize2, RotateCcw, Download, Settings, Eye, Split, Layers } from "lucide-react"
 import { getDualCompanyAssets, getSerialAssets, loadDualCompanyPointClouds, type PointCloudData } from "../utils/dataLoader"
@@ -45,6 +46,158 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   const rightRendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const animationRef = useRef<number | null>(null)
 
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [rotationStep, setRotationStep] = useState(0)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [, forceUpdate] = useState(0)
+
+  // Fullscreen handlers
+  const getMainContainer = () => {
+    if (viewMode === "split") {
+      // For split, use the parent of both left/right
+      return mountRef.current?.parentElement || leftMountRef.current?.parentElement || rightMountRef.current?.parentElement
+    }
+    return mountRef.current
+  }
+
+  const handleFullscreen = useCallback(() => {
+    const container = getMainContainer()
+    if (container && container.requestFullscreen) {
+      container.requestFullscreen()
+      setIsFullscreen(true)
+    } else if (container && (container as any).webkitRequestFullscreen) {
+      (container as any).webkitRequestFullscreen()
+      setIsFullscreen(true)
+    }
+  }, [viewMode])
+
+  const handleExitFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    } else if ((document as any).webkitFullscreenElement) {
+      (document as any).webkitExitFullscreen()
+      setIsFullscreen(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const container = getMainContainer()
+      if (!document.fullscreenElement && !((document as any).webkitFullscreenElement)) {
+        setIsFullscreen(false)
+      } else if (
+        document.fullscreenElement === container ||
+        (document as any).webkitFullscreenElement === container
+      ) {
+        setIsFullscreen(true)
+      }
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange)
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange)
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange)
+      document.removeEventListener("webkitfullscreenchange", onFullscreenChange)
+    }
+  }, [viewMode])
+
+  // ROTATION HANDLER
+  const handleRotate = useCallback(() => {
+    setRotationStep((prev) => (prev + 1) % 4)
+  }, [])
+
+  // Apply rotation to point clouds after each render
+  useEffect(() => {
+    // Helper to rotate all point clouds in a scene
+    const rotateScene = (scene: THREE.Scene | null, angle: number) => {
+      if (!scene) return
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Points) {
+          obj.rotation.y = angle
+        }
+      })
+    }
+    const angle = (rotationStep * Math.PI) / 2 // 0, 90, 180, 270 deg
+    if (viewMode === "split") {
+      rotateScene(leftSceneRef.current, angle)
+      rotateScene(rightSceneRef.current, angle)
+    } else if (singleSceneRef.current) {
+      rotateScene(singleSceneRef.current, angle)
+    }
+  }, [rotationStep, viewMode, showPointCloud])
+
+  // DOWNLOAD HANDLER
+  const handleDownload = useCallback(async () => {
+    setDownloadError(null)
+    try {
+      // Helper to convert point cloud data to PLY format
+      function toPLY(data: PointCloudData, company: string) {
+        let header = `ply\nformat ascii 1.0\nelement vertex ${data.pointCount}\nproperty float x\nproperty float y\nproperty float z\n`;
+        if (data.colors) header += "property uchar red\nproperty uchar green\nproperty uchar blue\n";
+        header += "end_header\n";
+        let body = "";
+        for (let i = 0; i < data.pointCount; i++) {
+          const x = data.vertices[i * 3 + 0];
+          const y = data.vertices[i * 3 + 1];
+          const z = data.vertices[i * 3 + 2];
+          if (data.colors) {
+            const r = Math.round(data.colors[i * 3 + 0] * 255);
+            const g = Math.round(data.colors[i * 3 + 1] * 255);
+            const b = Math.round(data.colors[i * 3 + 2] * 255);
+            body += `${x} ${y} ${z} ${r} ${g} ${b}\n`;
+          } else {
+            body += `${x} ${y} ${z}\n`;
+          }
+        }
+        return header + body;
+      }
+      // Get the data for the current view
+      const dualData = await loadDualCompanyPointClouds(serialNumber)
+      if (viewMode === "single-original" && dualData.originalSource) {
+        const ply = toPLY(dualData.originalSource, "Original Source Factory Corporation")
+        const blob = new Blob([ply], { type: "text/plain" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${serialNumber}_original.ply`
+        a.click()
+        URL.revokeObjectURL(url)
+      } else if (viewMode === "single-kr" && dualData.kr) {
+        const ply = toPLY(dualData.kr, "Metabread Co., Ltd.")
+        const blob = new Blob([ply], { type: "text/plain" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${serialNumber}_kr.ply`
+        a.click()
+        URL.revokeObjectURL(url)
+      } else if ((viewMode === "split" || viewMode === "overlay") && dualData.originalSource && dualData.kr) {
+        // Download both as separate files
+        const ply1 = toPLY(dualData.originalSource, "Original Source Factory Corporation")
+        const ply2 = toPLY(dualData.kr, "Metabread Co., Ltd.")
+        // Download both
+        const blob1 = new Blob([ply1], { type: "text/plain" })
+        const url1 = URL.createObjectURL(blob1)
+        const a1 = document.createElement("a")
+        a1.href = url1
+        a1.download = `${serialNumber}_original.ply`
+        a1.click()
+        URL.revokeObjectURL(url1)
+        const blob2 = new Blob([ply2], { type: "text/plain" })
+        const url2 = URL.createObjectURL(blob2)
+        const a2 = document.createElement("a")
+        a2.href = url2
+        a2.download = `${serialNumber}_kr.ply`
+        a2.click()
+        URL.revokeObjectURL(url2)
+      } else {
+        setDownloadError("No point cloud data available for download.")
+      }
+    } catch (e) {
+      setDownloadError("Failed to download point cloud.")
+    }
+  }, [serialNumber, viewMode])
+
   useEffect(() => {
     if (!mountRef.current && !leftMountRef.current && !rightMountRef.current) return
 
@@ -80,6 +233,8 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
 const singleControlsRef = useRef<any>(null)
 const leftControlsRef = useRef<any>(null)
 const rightControlsRef = useRef<any>(null)
+
+const singleCameraRef = useRef<THREE.PerspectiveCamera | null>(null)
 
 const cleanup = () => {
   if (animationRef.current) {
@@ -168,6 +323,7 @@ const cleanup = () => {
     )
     camera.position.set(-15, 6, 15)
     camera.lookAt(0, 0, 0)
+    singleCameraRef.current = camera
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -538,7 +694,7 @@ const cleanup = () => {
   }
 
   const renderViewModeControls = () => (
-    <div className="absolute top-4 right-4 flex flex-col space-y-2">
+    <div className="absolute top-4 right-4 flex flex-col space-y-2 z-50">
       <div className="flex space-x-2">
         <button
           onClick={() => onViewModeChange("single-original")}
@@ -562,21 +718,44 @@ const cleanup = () => {
         >
           <span className="font-bold">2nd</span>
         </button>
-
       </div>
-
       {/* Standard controls */}
       <div className="flex space-x-2">
-        <button className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors">
-          <Maximize2 className="w-4 h-4 text-gray-300" />
-        </button>
-        <button className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors">
+        {!isFullscreen ? (
+          <button
+            className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors"
+            onClick={handleFullscreen}
+            title="Fullscreen"
+          >
+            <Maximize2 className="w-4 h-4 text-gray-300" />
+          </button>
+        ) : (
+          <button
+            className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors"
+            onClick={handleExitFullscreen}
+            title="Exit Fullscreen"
+          >
+            <span className="font-bold text-white">⤢</span>
+          </button>
+        )}
+        <button
+          className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors"
+          onClick={handleRotate}
+          title={`Rotate (${rotationStep * 90}°)`}
+        >
           <RotateCcw className="w-4 h-4 text-gray-300" />
         </button>
-        <button className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors">
+        <button
+          className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors"
+          onClick={handleDownload}
+          title="Download Point Cloud"
+        >
           <Download className="w-4 h-4 text-gray-300" />
         </button>
       </div>
+      {downloadError && (
+        <div className="text-xs text-red-400 mt-2 bg-black/80 px-2 py-1 rounded">{downloadError}</div>
+      )}
     </div>
   )
 
@@ -616,6 +795,68 @@ const cleanup = () => {
       </div>
     </div>
   )
+
+  // Update the useEffect for fullscreen/resize handling to also force a reflow and remove any fullscreen-specific styles when isFullscreen is false.
+  useEffect(() => {
+    const resize = () => {
+      if (isFullscreen) {
+        const width = window.innerWidth
+        const height = window.innerHeight
+        if (viewMode === "split") {
+          if (leftRendererRef.current && leftMountRef.current) {
+            leftRendererRef.current.setSize(width / 2, height)
+          }
+          if (rightRendererRef.current && rightMountRef.current) {
+            rightRendererRef.current.setSize(width / 2, height)
+          }
+        } else if (singleRendererRef.current && mountRef.current) {
+          singleRendererRef.current.setSize(width, height)
+        }
+      } else {
+        // Restore to container size and force reflow
+        setTimeout(function() {
+          if (viewMode === "split") {
+            if (leftRendererRef.current && leftMountRef.current) {
+              leftRendererRef.current.setSize(leftMountRef.current.clientWidth, leftMountRef.current.clientHeight)
+            }
+            if (rightRendererRef.current && rightMountRef.current) {
+              rightRendererRef.current.setSize(rightMountRef.current.clientWidth, rightMountRef.current.clientHeight)
+            }
+          } else if (singleRendererRef.current && mountRef.current) {
+            singleRendererRef.current.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
+          }
+          // Remove any inline styles that may have been set
+          const container = getMainContainer()
+          if (container) {
+            container.style.width = ''
+            container.style.height = ''
+            container.style.top = ''
+            container.style.left = ''
+          }
+          // Force a React reflow
+          forceUpdate((n) => n + 1)
+        }, 50)
+      }
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [isFullscreen, viewMode])
+
+  useEffect(() => {
+    // Only for single view
+    if (
+      showPointCloud &&
+      viewMode !== 'split' &&
+      singleRendererRef.current &&
+      singleSceneRef.current &&
+      singleCameraRef.current &&
+      mountRef.current &&
+      animationRef.current == null
+    ) {
+      startAnimation(singleCameraRef.current, singleRendererRef.current, singleSceneRef.current)
+    }
+  }, [showPointCloud, viewMode])
 
   if (!showPointCloud) {
     const views = ["front", "back", "front-right", "front-left", "back-right", "back-left"];
@@ -674,7 +915,14 @@ const cleanup = () => {
   console.log('[DualCompanyViewer] Rendering with viewMode:', viewMode)
   
   return (
-    <div className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden">
+    <div
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-[9999] w-screen h-screen bg-gray-900 overflow-hidden'
+          : 'relative w-full h-full bg-gray-900 rounded-lg overflow-hidden'
+      }
+      style={isFullscreen ? { width: '100vw', height: '100vh', top: 0, left: 0 } : {}}
+    >
       {/* Only render the correct containers for each mode to avoid overlap and leftover canvases */}
       {viewMode === "split" ? (
         <div className="flex w-full h-full">
