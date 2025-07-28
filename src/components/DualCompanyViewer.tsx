@@ -5,7 +5,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react
 import * as THREE from "three"
 // @ts-ignore
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import { Maximize2, RotateCcw, Download, Settings, Eye, Split, Layers } from "lucide-react"
+import { Maximize2, RotateCcw, Download, Settings, Eye, Split, Layers, Move } from "lucide-react"
 import { getDualCompanyAssets, getSerialAssets, loadDualCompanyPointClouds, type PointCloudData } from "../utils/dataLoader"
 
 interface DualCompanyViewerProps {
@@ -337,6 +337,11 @@ const cleanup = () => {
     singleRendererRef.current = renderer
 
     mountRef.current.appendChild(renderer.domElement)
+    
+    // Add event listeners to ensure the renderer captures mouse events
+    renderer.domElement.addEventListener('mousedown', () => {
+      console.log('[DualCompanyViewer] Mouse down event on single view');
+    });
 
     // Add lighting
     setupLighting(scene)
@@ -415,6 +420,11 @@ const cleanup = () => {
     leftRenderer.setSize(leftMountRef.current.clientWidth, leftMountRef.current.clientHeight)
     leftRendererRef.current = leftRenderer
     leftMountRef.current.appendChild(leftRenderer.domElement)
+    
+    // Add event listeners to ensure the renderer captures mouse events
+    leftRenderer.domElement.addEventListener('mousedown', () => {
+      console.log('[DualCompanyViewer] Mouse down event on left view');
+    });
 
     // Initialize right scene (Metabread Co., Ltd.)
     const rightScene = new THREE.Scene()
@@ -434,6 +444,11 @@ const cleanup = () => {
     rightRenderer.setSize(rightMountRef.current.clientWidth, rightMountRef.current.clientHeight)
     rightRendererRef.current = rightRenderer
     rightMountRef.current.appendChild(rightRenderer.domElement)
+    
+    // Add event listeners to ensure the renderer captures mouse events
+    rightRenderer.domElement.addEventListener('mousedown', () => {
+      console.log('[DualCompanyViewer] Mouse down event on right view');
+    });
 
     // Setup lighting for both scenes
     setupLighting(leftScene)
@@ -633,11 +648,44 @@ const cleanup = () => {
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
-    controls.screenSpacePanning = false
+    controls.screenSpacePanning = true // Enable screen space panning for more intuitive panning
     controls.autoRotate = false // Disable auto-rotation
     controls.enableZoom = true
     controls.enablePan = true
+    controls.panSpeed = 1.0 // Adjust panning speed
+    
+    // Force the controls to listen to events immediately
+    controls.update();
+    
+    // Store the controls reference
     singleControlsRef.current = controls;
+    
+    // Simulate a mouse interaction to ensure the controls are properly initialized
+    setTimeout(() => {
+      if (renderer && renderer.domElement) {
+        // Create and dispatch a mousedown event
+        const downEvent = new MouseEvent('mousedown', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0,
+          buttons: 1
+        });
+        renderer.domElement.dispatchEvent(downEvent);
+        
+        // Create and dispatch a mouseup event after a short delay
+        setTimeout(() => {
+          const upEvent = new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            button: 0,
+            buttons: 0
+          });
+          renderer.domElement.dispatchEvent(upEvent);
+        }, 10);
+      }
+    }, 100);
 
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
@@ -668,20 +716,86 @@ const cleanup = () => {
     const leftControls = new OrbitControls(leftCamera, leftRenderer.domElement)
     leftControls.enableDamping = true
     leftControls.dampingFactor = 0.05
-    leftControls.screenSpacePanning = false
+    leftControls.screenSpacePanning = true // Enable screen space panning for more intuitive panning
     leftControls.autoRotate = false // Disable auto-rotation
     leftControls.enableZoom = true
     leftControls.enablePan = true
+    leftControls.panSpeed = 1.0 // Adjust panning speed
+    
+    // Force the controls to listen to events immediately
+    leftControls.update();
+    
+    // Store the controls reference
     leftControlsRef.current = leftControls;
+    
+    // Simulate a mouse interaction to ensure the left controls are properly initialized
+    setTimeout(() => {
+      if (leftRenderer && leftRenderer.domElement) {
+        // Create and dispatch a mousedown event
+        const downEvent = new MouseEvent('mousedown', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0,
+          buttons: 1
+        });
+        leftRenderer.domElement.dispatchEvent(downEvent);
+        
+        // Create and dispatch a mouseup event after a short delay
+        setTimeout(() => {
+          const upEvent = new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            button: 0,
+            buttons: 0
+          });
+          leftRenderer.domElement.dispatchEvent(upEvent);
+        }, 10);
+      }
+    }, 100);
 
     const rightControls = new OrbitControls(rightCamera, rightRenderer.domElement)
     rightControls.enableDamping = true
     rightControls.dampingFactor = 0.05
-    rightControls.screenSpacePanning = false
+    rightControls.screenSpacePanning = true // Enable screen space panning for more intuitive panning
     rightControls.autoRotate = false // Disable auto-rotation
     rightControls.enableZoom = true
     rightControls.enablePan = true
+    rightControls.panSpeed = 1.0 // Adjust panning speed
+    
+    // Force the controls to listen to events immediately
+    rightControls.update();
+    
+    // Store the controls reference
     rightControlsRef.current = rightControls;
+    
+    // Simulate a mouse interaction to ensure the right controls are properly initialized
+    setTimeout(() => {
+      if (rightRenderer && rightRenderer.domElement) {
+        // Create and dispatch a mousedown event
+        const downEvent = new MouseEvent('mousedown', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0,
+          buttons: 1
+        });
+        rightRenderer.domElement.dispatchEvent(downEvent);
+        
+        // Create and dispatch a mouseup event after a short delay
+        setTimeout(() => {
+          const upEvent = new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            button: 0,
+            buttons: 0
+          });
+          rightRenderer.domElement.dispatchEvent(upEvent);
+        }, 10);
+      }
+    }, 100);
 
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
@@ -745,6 +859,7 @@ const cleanup = () => {
         >
           <RotateCcw className="w-4 h-4 text-gray-300" />
         </button>
+        {/* Removed the Pan button since panning is already enabled by default with right-click or middle-click */}
         <button
           className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors"
           onClick={handleDownload}
@@ -857,6 +972,86 @@ const cleanup = () => {
       startAnimation(singleCameraRef.current, singleRendererRef.current, singleSceneRef.current)
     }
   }, [showPointCloud, viewMode])
+  
+  // Add an additional effect to ensure controls are properly initialized when switching views
+  useEffect(() => {
+    // Short delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      if (viewMode !== 'split' && singleControlsRef.current) {
+        singleControlsRef.current.update();
+        
+        // Force the controls to be responsive by simulating a mouse event
+        if (singleRendererRef.current && singleRendererRef.current.domElement) {
+          const event = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          singleRendererRef.current.domElement.dispatchEvent(event);
+          
+          // Also dispatch a mouseup event to complete the interaction
+          setTimeout(() => {
+            const upEvent = new MouseEvent('mouseup', {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            singleRendererRef.current?.domElement.dispatchEvent(upEvent);
+          }, 10);
+        }
+      } else if (viewMode === 'split') {
+        if (leftControlsRef.current) {
+          leftControlsRef.current.update();
+          
+          // Force the left controls to be responsive
+          if (leftRendererRef.current && leftRendererRef.current.domElement) {
+            const event = new MouseEvent('mousedown', {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            leftRendererRef.current.domElement.dispatchEvent(event);
+            
+            // Also dispatch a mouseup event to complete the interaction
+            setTimeout(() => {
+              const upEvent = new MouseEvent('mouseup', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+              });
+              leftRendererRef.current?.domElement.dispatchEvent(upEvent);
+            }, 10);
+          }
+        }
+        
+        if (rightControlsRef.current) {
+          rightControlsRef.current.update();
+          
+          // Force the right controls to be responsive
+          if (rightRendererRef.current && rightRendererRef.current.domElement) {
+            const event = new MouseEvent('mousedown', {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            rightRendererRef.current.domElement.dispatchEvent(event);
+            
+            // Also dispatch a mouseup event to complete the interaction
+            setTimeout(() => {
+              const upEvent = new MouseEvent('mouseup', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+              });
+              rightRendererRef.current?.domElement.dispatchEvent(upEvent);
+            }, 10);
+          }
+        }
+      }
+    }, 200); // Increased delay to ensure everything is ready
+    
+    return () => clearTimeout(timer);
+  }, [viewMode, showPointCloud])
 
   if (!showPointCloud) {
     const views = ["front", "back", "front-right", "front-left", "back-right", "back-left"];
@@ -958,7 +1153,23 @@ const cleanup = () => {
 
       {renderViewModeControls()}
       {renderInfoPanel()}
+      {renderInstructionsPanel()}
     </div>
   )
 }
+
+// Add instructions panel to inform users about controls
+const renderInstructionsPanel = () => (
+  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/90 backdrop-blur-sm rounded-lg p-3 text-white text-xs max-w-sm border border-gray-700">
+    <div className="space-y-2">
+      <div className="text-yellow-400 font-semibold mb-2">Controls:</div>
+      <div className="grid grid-cols-2 gap-2 text-gray-300">
+        <div>• <span className="text-blue-400">Left-click + drag</span>: Rotate</div>
+        <div>• <span className="text-green-400">Right-click + drag</span>: Pan</div>
+        <div>• <span className="text-purple-400">Scroll wheel</span>: Zoom</div>
+        <div>• <span className="text-orange-400">Middle-click + drag</span>: Pan</div>
+      </div>
+    </div>
+  </div>
+)
 
