@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://metabread.cloud/api';
+const API_BASE_URL = 'https://3-d-point-cloud-labeling-platform-b.vercel.app/api';
 
 export interface ApiResponse<T = any> {
   success: boolean;

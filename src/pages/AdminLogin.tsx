@@ -20,7 +20,7 @@ const AdminLogin: React.FC = () => {
 
     try {
       // Make API call to backend for authentication
-      const response = await axios.post('https://metabread.cloud/api/auth/login', {
+      const response = await axios.post('https://3-d-point-cloud-labeling-platform-b.vercel.app/api/auth/login', {
         email,
         password
       });
