@@ -22,7 +22,7 @@ const LoginPage: React.FC = () => {
       }
 
       // Call backend authentication API
-      const API_BASE_URL = 'https://3-d-point-cloud-labeling-platform-b.vercel.app/api';
+      const API_BASE_URL = 'https://metabread.cloud/api';
 
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
