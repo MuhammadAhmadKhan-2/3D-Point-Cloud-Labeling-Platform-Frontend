@@ -70,7 +70,7 @@ class ApiService {
     password: string;
     userType: string;
   }): Promise<ApiResponse<AuthResponse>> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(credentials)
