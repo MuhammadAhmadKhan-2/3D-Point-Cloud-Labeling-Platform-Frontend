@@ -69,7 +69,7 @@ const AdminDashboardContent: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch(import.meta.env.VITE_API_BASE_URL + '/auth/logout', {
+      await fetch(import.meta.env.VITE_API_BASE_URL + '/api/auth/logout', {
         method: 'POST',
         credentials: 'include'
       });
