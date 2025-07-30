@@ -20,7 +20,7 @@ const AdminLogin: React.FC = () => {
 
     try {
       // Make API call to backend for authentication
-      const response = await axios.post(import.meta.env.VITE_API_BASE_URL + '/auth/login', {
+      const response = await axios.post(import.meta.env.VITE_API_BASE_URL + '/api/auth/login', {
         email,
         password
       });
