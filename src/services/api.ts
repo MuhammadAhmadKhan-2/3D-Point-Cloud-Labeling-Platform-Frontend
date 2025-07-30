@@ -47,7 +47,7 @@ class ApiService {
     confirmPassword: string;
     role: string;
   }): Promise<ApiResponse<AuthResponse>> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(userData)
@@ -88,7 +88,7 @@ class ApiService {
   }
 
   async forgotPassword(email: string): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ email })
@@ -102,7 +102,7 @@ class ApiService {
     password: string;
     confirmPassword: string;
   }): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(data)
@@ -112,7 +112,7 @@ class ApiService {
   }
 
   async logout(): Promise<ApiResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
       headers: this.getAuthHeaders()
     });
@@ -128,7 +128,7 @@ class ApiService {
   }
 
   async getProfile(): Promise<ApiResponse<{ user: User }>> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
       method: 'GET',
       headers: this.getAuthHeaders()
     });
