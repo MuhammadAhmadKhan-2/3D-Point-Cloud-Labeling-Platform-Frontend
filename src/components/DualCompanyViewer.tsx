@@ -30,6 +30,9 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState<{ [key: string]: number }>({})
   const [pointCounts, setPointCounts] = useState<{ [key: string]: number }>({})
+  // New: processing overlay state
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingMessage, setProcessingMessage] = useState("")
   // Store 5 image URLs per company (front, back, left, right, top)
   const [imageUrls, setImageUrls] = useState<{ [company: string]: { [view: string]: string } }>({})
   const [imageErrors, setImageErrors] = useState<{ [key: string]: string | null }>({})
@@ -807,11 +810,24 @@ const cleanup = () => {
     animate()
   }
 
+  // Helper to handle view mode change with a processing overlay
+  const handleModeButtonClick = (target: "single-original" | "single-kr") => {
+    if (viewMode === target) return
+    const message = target === "single-kr" ? "Processing point-cloud data. Removing Noise and adding details" : "Reverting to original data…"
+    setProcessingMessage(message)
+    setIsProcessing(true)
+    // Simulate processing delay 3.5 s then switch mode
+    setTimeout(() => {
+      onViewModeChange(target)
+      setIsProcessing(false)
+    }, 3500)
+  }
+
   const renderViewModeControls = () => (
     <div className="absolute top-4 right-4 flex flex-col space-y-2 z-50">
       <div className="flex space-x-2">
         <button
-          onClick={() => onViewModeChange("single-original")}
+          onClick={() => handleModeButtonClick("single-original") }
           className={`p-3 rounded-lg border transition-colors ${
             viewMode === "single-original"
               ? "bg-red-600 border-red-500 text-white"
@@ -819,10 +835,10 @@ const cleanup = () => {
           }`}
           title="Show Only: Original Source Factory Corporation"
         >
-          <span className="font-bold">1st</span>
+          <span className="font-bold">Go Back</span>
         </button>
         <button
-          onClick={() => onViewModeChange("single-kr")}
+          onClick={() => handleModeButtonClick("single-kr") }
           className={`p-3 rounded-lg border transition-colors ${
             viewMode === "single-kr"
               ? "bg-blue-600 border-blue-500 text-white"
@@ -830,7 +846,7 @@ const cleanup = () => {
           }`}
           title="Show Only: Metabread Co., Ltd."
         >
-          <span className="font-bold">2nd</span>
+          <span className="font-bold">Start Preprocessing</span>
         </button>
       </div>
       {/* Standard controls */}
@@ -1136,6 +1152,14 @@ const cleanup = () => {
         <div ref={mountRef} className="w-full h-full" />
       )}
       {/* End conditional view containers */}
+
+      {/* Processing overlay */}
+      {isProcessing && (
+        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 text-white backdrop-blur-sm">
+          <div className="w-16 h-16 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin mb-4" />
+          <div className="text-lg font-semibold animate-pulse">{processingMessage}</div>
+        </div>
+      )}
 
       {isLoading && (
         <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center backdrop-blur-sm">
