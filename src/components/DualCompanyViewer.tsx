@@ -507,7 +507,7 @@ const cleanup = () => {
 
     switch (viewMode) {
       case "single-original":
-        setLoadingMessage("Loading Original Source Factory Corporation Data...")
+        setLoadingMessage("Loading Data...")
         const originalData = await loadDualCompanyPointClouds(serialNumber)
         if (originalData.originalSource) {
           return await createPointCloudFromData(originalData.originalSource, "Original Source Factory Corporation")
@@ -515,7 +515,7 @@ const cleanup = () => {
         return createFallbackPointCloud("Original Source Factory Corporation")
 
       case "single-kr":
-        setLoadingMessage("Loading Metabread Co., Ltd. Data...")
+        setLoadingMessage("Loading Data...")
         const krData = await loadDualCompanyPointClouds(serialNumber)
         if (krData.kr) {
           return await createPointCloudFromData(krData.kr, "Metabread Co., Ltd.")
@@ -846,7 +846,7 @@ const cleanup = () => {
           }`}
           title="Show Only: Metabread Co., Ltd."
         >
-          <span className="font-bold">Start Preprocessing</span>
+          <span className="font-bold">Advanced Processing</span>
         </button>
       </div>
       {/* Standard controls */}

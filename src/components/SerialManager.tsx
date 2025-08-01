@@ -100,9 +100,6 @@ const SerialManager: React.FC = () => {
 
                   <td className="px-4 py-3 whitespace-nowrap">30</td>
                   <td className="px-4 py-3 flex items-center gap-3">
-                    <button className="p-1.5 hover:bg-gray-700 rounded" title="View">
-                      <Eye size={16} />
-                    </button>
                     <button
                       onClick={() => handleDelete(serial.id)}
                       className="p-1.5 hover:bg-red-600/20 rounded text-red-400"

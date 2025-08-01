@@ -555,7 +555,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                 <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center space-x-2">
                   <span>Current View Mode</span>
                   <div className="px-2 py-1 bg-purple-600/20 text-purple-400 text-xs rounded border border-purple-500/30">
-                    {viewMode.toUpperCase().replace("-", " ")}
+                    {viewMode === "single-original" || viewMode === "single-kr" ? "SINGLE" : viewMode.toUpperCase().replace("-", " ")}
                   </div>
                 </h4>
                 <div className="space-y-2 text-sm">
@@ -563,9 +563,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                     <span className="text-gray-400">Mode:</span>
                     <span className="text-purple-400 font-medium">
                       {viewMode === "single-original"
-                        ? "Original Source Only"
+                        ? "Preprocessed Only"
                         : viewMode === "single-kr"
-                          ? "Metabread Co., Ltd. Only"
+                          ? "Refined Only"
                           : viewMode === "split"
                             ? "Side by Side"
                             : "Overlay Comparison"}
