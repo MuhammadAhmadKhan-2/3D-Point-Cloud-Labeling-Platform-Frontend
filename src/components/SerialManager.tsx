@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Plus, Trash2, Eye } from 'lucide-react';
 
 interface FrameImages {
@@ -11,7 +12,7 @@ interface FrameImages {
 }
 
 interface Serial {
-  id: string;
+  id: string; // local key (maps to _id from backend)
   serialNumber: string;
 
   pcdFileA?: File;
@@ -24,6 +25,8 @@ const COMPANY_B = 'Meta bread';
 
 const SerialManager: React.FC = () => {
   const [serials, setSerials] = useState<Serial[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const emptyFrames = Array.from({ length: 30 }, () => ({} as FrameImages));
   const [newSerial, setNewSerial] = useState<Omit<Serial, 'id'>>({
@@ -32,6 +35,26 @@ const SerialManager: React.FC = () => {
     pcdFileB: undefined,
     frames: emptyFrames,
   });
+
+  // Fetch existing serials on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_BASE_URL}/serials`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const fetched: Serial[] = res.data.data.serials.map((s: any) => ({ ...s, id: s._id }));
+        setSerials(fetched);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const resetForm = () => {
     setNewSerial({
@@ -42,25 +65,108 @@ const SerialManager: React.FC = () => {
     });
   };
 
-  const handleAddSerial = (e: React.FormEvent) => {
+  const handleAddSerial = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    if (loading) return;
+    setLoading(true);
     if (!newSerial.serialNumber || !newSerial.pcdFileA || !newSerial.pcdFileB) {
       alert('Please provide Serial Number and both PCD files.');
       return;
     }
-    const newEntry: Serial = {
-      id: Date.now().toString(),
-      ...newSerial,
-      frames: [...newSerial.frames],
-    };
-    setSerials((prev) => [...prev, newEntry]);
-    setShowAddModal(false);
-    resetForm();
+    // Build FormData for multipart upload
+    try {
+      const formData = new FormData();
+      formData.append('serialNumber', newSerial.serialNumber);
+      if (newSerial.pcdFileA) formData.append('pcdFileA', newSerial.pcdFileA);
+      if (newSerial.pcdFileB) formData.append('pcdFileB', newSerial.pcdFileB);
+
+      // Append frame images
+      const imageTypes = ['front', 'back', 'front_left', 'front_right', 'left', 'right'] as const;
+      newSerial.frames.forEach((frame, idx) => {
+        imageTypes.forEach((type) => {
+          const file = frame[type as keyof FrameImages] as File | undefined;
+          if (file) {
+            formData.append(`frame_${idx}_${type}`, file);
+          }
+        });
+      });
+
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('token');
+
+      const response = await axios.post(`${API_BASE_URL}/serials`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const createdSerial = response.data.data;
+      // Add to local list for instant UI
+      // After add, re-fetch serials from backend to ensure only backend ids are present
+      await fetchSerials();
+      setShowAddModal(false);
+      resetForm();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Failed to create serial');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setSerials((prev) => prev.filter((s) => s.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!/^[a-f\d]{24}$/i.test(id)) {
+      alert('Cannot delete serial: invalid backend id.');
+      return;
+    }
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Authentication token is missing. Please log in again.');
+        return;
+      }
+      console.log('Deleting serial with ID:', id);
+      const response = await axios.delete(`${API_BASE_URL}/serials/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchSerials();
+      alert('Serial deleted successfully');
+    } catch (err: any) {
+      console.error('Delete error:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
+      const message = err.response?.data?.message || 'Failed to delete serial';
+      alert(`Error: ${message}`);
+    }
   };
+
+  // Helper to fetch serials from backend
+  const fetchSerials = async () => {
+    try {
+      setLoading(true);
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_BASE_URL}/serials`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const fetched: Serial[] = res.data.data.serials.map((s: any) => ({ ...s, id: s._id }));
+      setSerials(fetched);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchSerials();
+  }, []);
 
   return (
     <div className="relative">
@@ -168,7 +274,10 @@ const SerialManager: React.FC = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
                       {['front', 'back', 'front_left', 'front_right', 'left', 'right'].map((view) => (
                         <div key={view}>
-                          <label className="block text-xs text-gray-400 mb-1 capitalize">{view.replace('_', ' ')}</label>
+                          <label className="block text-xs text-gray-400 mb-1 capitalize flex items-center gap-1">
+                            {view.replace('_', ' ')}
+                            <span className={`text-xs ${newSerial.frames[idx][view as keyof FrameImages] ? 'text-green-400' : 'text-red-400'}`}>●</span>
+                          </label>
                           <input
                             type="file"
                             accept="image/*"
@@ -180,7 +289,7 @@ const SerialManager: React.FC = () => {
                                 return { ...prev, frames: framesCopy };
                               });
                             }}
-                            className="file:bg-teal-600 file:hover:bg-teal-700 file:text-white file:rounded file:px-2 file:py-1 file:border-0 bg-gray-800 border border-gray-700 rounded-lg text-white w-full"
+                            className={`cursor-pointer file:bg-teal-600 file:hover:bg-teal-700 file:text-white file:rounded file:px-2 file:py-1 file:border-0 bg-gray-800 border-2 ${newSerial.frames[idx][view as keyof FrameImages] ? 'border-green-500' : 'border-red-500'} rounded-lg text-white w-full`}
                           />
                         </div>
                       ))}
