@@ -28,6 +28,8 @@ const SerialManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const emptyFrames = Array.from({ length: 30 }, () => ({} as FrameImages));
   const [newSerial, setNewSerial] = useState<Omit<Serial, 'id'>>({
     serialNumber: '',
@@ -48,8 +50,9 @@ const SerialManager: React.FC = () => {
         });
         const fetched: Serial[] = res.data.data.serials.map((s: any) => ({ ...s, id: s._id }));
         setSerials(fetched);
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
+        setError(err.response?.data?.message || 'Failed to fetch serials');
       } finally {
         setLoading(false);
       }
@@ -68,10 +71,11 @@ const SerialManager: React.FC = () => {
   const handleAddSerial = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (loading) return;
-    setLoading(true);
+    if (saving) return;
+    setSaving(true);
     if (!newSerial.serialNumber || !newSerial.pcdFileA || !newSerial.pcdFileB) {
-      alert('Please provide Serial Number and both PCD files.');
+      setError('Please provide Serial Number and both PCD files.');
+      setSaving(false);
       return;
     }
     // Build FormData for multipart upload
@@ -108,24 +112,28 @@ const SerialManager: React.FC = () => {
       await fetchSerials();
       setShowAddModal(false);
       resetForm();
+      setError(null); // Clear error on successful creation
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || 'Failed to create serial');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    setDeletingId(id);
     if (!/^[a-f\d]{24}$/i.test(id)) {
-      alert('Cannot delete serial: invalid backend id.');
+      setError('Cannot delete serial: invalid backend id.');
+      setDeletingId(null);
       return;
     }
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('token');
       if (!token) {
-        alert('Authentication token is missing. Please log in again.');
+        setError('Authentication token is missing. Please log in again.');
+        setDeletingId(null);
         return;
       }
       console.log('Deleting serial with ID:', id);
@@ -133,7 +141,7 @@ const SerialManager: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       await fetchSerials();
-      alert('Serial deleted successfully');
+      // Don't show success message on main screen since we're only showing errors in modal
     } catch (err: any) {
       console.error('Delete error:', {
         message: err.message,
@@ -141,7 +149,9 @@ const SerialManager: React.FC = () => {
         status: err.response?.status,
       });
       const message = err.response?.data?.message || 'Failed to delete serial';
-      alert(`Error: ${message}`);
+      setError(message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -158,6 +168,7 @@ const SerialManager: React.FC = () => {
       setSerials(fetched);
     } catch (err) {
       console.error(err);
+      // Don't set global error here as it's not related to user actions in the modal
     } finally {
       setLoading(false);
     }
@@ -173,12 +184,17 @@ const SerialManager: React.FC = () => {
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
         Point Cloud Management
         <button
-          onClick={() => setShowAddModal(true)}
-          className="ml-auto inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm"
+          onClick={() => {
+            setShowAddModal(true);
+            setError(null);
+          }}
+          disabled={saving || deletingId !== null}
+          className="ml-auto inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={16} /> Add Serial
         </button>
       </h2>
+
 
       {/* Serial List */}
       {serials.length === 0 ? (
@@ -208,10 +224,15 @@ const SerialManager: React.FC = () => {
                   <td className="px-4 py-3 flex items-center gap-3">
                     <button
                       onClick={() => handleDelete(serial.id)}
-                      className="p-1.5 hover:bg-red-600/20 rounded text-red-400"
+                      disabled={deletingId === serial.id}
+                      className="p-1.5 hover:bg-red-600/20 rounded text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Delete"
                     >
-                      <Trash2 size={16} />
+                      {deletingId === serial.id ? (
+                        <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
                     </button>
                   </td>
                 </tr>
@@ -229,6 +250,11 @@ const SerialManager: React.FC = () => {
               <Plus size={20} /> Add New Serial
             </h3>
             <form onSubmit={handleAddSerial} className="space-y-4">
+              {error && (
+                <div className={`mb-4 p-3 rounded-lg ${error.includes('successfully') ? 'bg-green-900/50 border border-green-700 text-green-200' : 'bg-red-900/50 border border-red-700 text-red-200'}`}>
+                  {error}
+                </div>
+              )}
               <div>
                 <label className="block mb-1 text-gray-300">Serial Number</label>
                 <input
@@ -300,15 +326,17 @@ const SerialManager: React.FC = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all"
+                  disabled={saving}
+                  className={`flex-1 py-2 rounded-lg text-white transition-all ${saving ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700'}`}
                 >
-                  Save Serial
+                  {saving ? 'Saving...' : 'Save Serial'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
                     resetForm();
+                    setError(null);
                   }}
                   className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
                 >
