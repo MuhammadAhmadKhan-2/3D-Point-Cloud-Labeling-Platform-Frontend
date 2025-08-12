@@ -5,10 +5,10 @@ import { Plus, Trash2, Eye } from 'lucide-react';
 interface FrameImages {
   front?: File;
   back?: File;
-  front_left?: File;
-  front_right?: File;
-  left?: File;
-  right?: File;
+  "front-left"?: File;
+  "front-right"?: File;
+  "back-left"?: File;
+  "back-right"?: File;
 }
 
 interface Serial {
@@ -78,18 +78,18 @@ const SerialManager: React.FC = () => {
       setSaving(false);
       return;
     }
+    
     // Build FormData for multipart upload
     try {
       const formData = new FormData();
       formData.append('serialNumber', newSerial.serialNumber);
       if (newSerial.pcdFileA) formData.append('pcdFileA', newSerial.pcdFileA);
       if (newSerial.pcdFileB) formData.append('pcdFileB', newSerial.pcdFileB);
-
-      // Append frame images
-      const imageTypes = ['front', 'back', 'front_left', 'front_right', 'left', 'right'] as const;
+      // Append frame images with corrected field names
+      const imageTypes = ['front', 'back', 'front_left', 'front_right', 'back_left', 'back_right'] as const;
       newSerial.frames.forEach((frame, idx) => {
         imageTypes.forEach((type) => {
-          const file = frame[type as keyof FrameImages] as File | undefined;
+          const file = frame[type.replace('_', '-') as keyof FrameImages] as File | undefined;
           if (file) {
             formData.append(`frame_${idx}_${type}`, file);
           }
@@ -99,13 +99,27 @@ const SerialManager: React.FC = () => {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('token');
 
-      const response = await axios.post(`${API_BASE_URL}/serials`, formData, {
+      console.log('Starting upload for serial:', newSerial.serialNumber);
+      console.log('Total files to upload:', Array.from(formData.entries()).length);
+
+      const response = await axios.post(`${API_BASE_URL}/serials/unlimited`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        timeout: 3600000, // 60 minutes timeout for very large uploads (200+ files)
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log(`Upload progress: ${percentCompleted}%`);
+            // You could add a progress bar here if needed
+          }
+        },
       });
 
+      console.log('Upload completed successfully');
       const createdSerial = response.data.data;
       // Add to local list for instant UI
       // After add, re-fetch serials from backend to ensure only backend ids are present
@@ -114,8 +128,20 @@ const SerialManager: React.FC = () => {
       resetForm();
       setError(null); // Clear error on successful creation
     } catch (err: any) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Failed to create serial');
+      console.error('Upload error:', err);
+      
+      // Provide more specific error messages
+      if (err.code === 'ECONNABORTED') {
+        setError('Upload timeout. Please try again with fewer files or check your connection.');
+      } else if (err.code === 'ERR_NETWORK') {
+        setError('Network error. Please check if the backend server is running and try again.');
+      } else if (err.response?.status === 413) {
+        setError('Files too large. Please reduce file sizes and try again.');
+      } else if (err.response?.status === 400) {
+        setError(err.response?.data?.message || 'Invalid request. Please check your files and try again.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to create serial. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -298,10 +324,10 @@ const SerialManager: React.FC = () => {
                   <details key={idx} className="bg-gray-900/60 rounded-lg p-3">
                     <summary className="cursor-pointer text-gray-200 mb-2">Frame {idx + 1}</summary>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
-                      {['front', 'back', 'front_left', 'front_right', 'left', 'right'].map((view) => (
+                      {['front', 'back', 'front-left', 'front-right', 'back-left', 'back-right'].map((view) => (
                         <div key={view}>
                           <label className="block text-xs text-gray-400 mb-1 capitalize flex items-center gap-1">
-                            {view.replace('_', ' ')}
+                            {view.replace('-', ' ')}
                             <span className={`text-xs ${newSerial.frames[idx][view as keyof FrameImages] ? 'text-green-400' : 'text-red-400'}`}>●</span>
                           </label>
                           <input

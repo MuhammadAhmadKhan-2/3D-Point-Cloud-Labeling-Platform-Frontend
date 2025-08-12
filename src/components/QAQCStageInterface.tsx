@@ -5,7 +5,7 @@ import { useState } from "react"
 import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3, Filter, Zap, TrendingUp, Layers, Play, Download, FolderOpen, Upload } from "lucide-react"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
-import { generateFrameData } from "../data/mockData"
+import { serialDataService } from "../services/serialDataService"
 
 interface StageInterfaceProps {
   stage: Stage
@@ -28,7 +28,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [processingProgress, setProcessingProgress] = useState(0)
   const [activeProcessing, setActiveProcessing] = useState<string | null>(null)
 
-  const frameData = selectedSerial ? generateFrameData(selectedSerial.serialNumber) : []
+  const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
 
   // Determine which company's data to show based on current view mode
   const companyForView = viewMode === "single-kr" ? "Metabread Co., Ltd." : "Original Source Factory Corporation";

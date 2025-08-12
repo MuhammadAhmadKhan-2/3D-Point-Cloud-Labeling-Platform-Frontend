@@ -1,17 +1,66 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { LogOut, User, CuboidIcon as Cube, Play, ArrowRight, Database, Cloud, Activity, BarChart3 } from "lucide-react"
 import { useAuth } from "../../hooks/useAuth"
 import { StageInterface } from "../../components/StageInterface"
-import { serialDataBothCompanies } from "../../data/mockData"
+import { serialDataService } from "../../services/serialDataService"
 
 const ClientDashboard: React.FC = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [showStageInterface, setShowStageInterface] = useState(false)
+  const [serialData, setSerialData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch serial data from backend on component mount
+  useEffect(() => {
+    const fetchSerialData = async () => {
+      try {
+        setLoading(true)
+        const backendSerials = await serialDataService.fetchSerials()
+        
+        // Transform backend data to match the expected format for both companies
+        const transformedData = backendSerials.flatMap(serial => [
+          {
+            id: serial._id,
+            serialNumber: serial.serialNumber,
+            workingDuration: "Processing Stage",
+            totalFrames: 30,
+            status: "Completed",
+            startDate: new Date(serial.createdAt).toISOString().split('T')[0],
+            endDate: new Date(serial.updatedAt).toISOString().split('T')[0],
+            invoiceNumber: `INV-${serial.serialNumber}`,
+            deliveryAmount: 880,
+            company: "Original Source Factory Corporation",
+          },
+          {
+            id: `${serial._id}-kr`,
+            serialNumber: serial.serialNumber,
+            workingDuration: "Refinement Stage",
+            totalFrames: 30,
+            status: "Completed",
+            startDate: new Date(serial.createdAt).toISOString().split('T')[0],
+            endDate: new Date(serial.updatedAt).toISOString().split('T')[0],
+            invoiceNumber: `KR-${serial.serialNumber}`,
+            deliveryAmount: 1000,
+            company: "Metabread Co., Ltd.",
+          }
+        ])
+        
+        setSerialData(transformedData)
+      } catch (error) {
+        console.error('Failed to fetch serial data:', error)
+        setSerialData([]) // Fallback to empty array
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSerialData()
+  }, [])
 
   // Mock stage for dual company visualization
   const mockStage = {
@@ -47,7 +96,15 @@ const ClientDashboard: React.FC = () => {
           <ArrowRight className="w-4 h-4 rotate-180" />
           <span>Back to Dashboard</span>
         </button>
-        <StageInterface stage={mockStage} serialData={serialDataBothCompanies} />
+        <StageInterface stage={mockStage} serialData={serialData} />
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center">
+        <div className="text-white text-xl">Loading serial data...</div>
       </div>
     )
   }

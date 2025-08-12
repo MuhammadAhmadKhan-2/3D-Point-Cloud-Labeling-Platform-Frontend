@@ -33,7 +33,7 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   // New: processing overlay state
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingMessage, setProcessingMessage] = useState("")
-  // Store 5 image URLs per company (front, back, left, right, top)
+  // Store 6 image URLs per company (front, back, front-left, front-right, back-left, back-right)
   const [imageUrls, setImageUrls] = useState<{ [company: string]: { [view: string]: string } }>({})
   const [imageErrors, setImageErrors] = useState<{ [key: string]: string | null }>({})
   const [imageLoaded, setImageLoaded] = useState<{ [key: string]: boolean }>({})
@@ -209,17 +209,40 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     setImageErrors({}) // Reset image error state on serial/view change
     setLoadingProgress({})
 
-    // Get assets for both companies using getSerialAssets
-    const originalAssets = getSerialAssets("preprocessing", serialNumber, "Original Source Factory Corporation");
-    const krAssets = getSerialAssets("preprocessing", serialNumber, "Metabread Co., Ltd.");
-    setImageUrls({
-      "Original Source Factory Corporation": originalAssets.images,
-      "Metabread Co., Ltd.": krAssets.images,
-    });
-    console.log('[DualCompanyViewer] imageUrls:', {
-      "Original Source Factory Corporation": originalAssets.images,
-      "Metabread Co., Ltd.": krAssets.images,
-    });
+    // Get assets for both companies using getDualCompanyAssets with frameId
+    const loadImages = async () => {
+      try {
+        const dualAssets = await getDualCompanyAssets(serialNumber, frameId);
+        // Use the same images for both companies since they should be identical
+        const sharedImages = dualAssets.originalSource.images;
+        setImageUrls({
+          "Original Source Factory Corporation": sharedImages,
+          "Metabread Co., Ltd.": sharedImages,
+        });
+        
+        console.log('[DualCompanyViewer] Using shared imageUrls for frame', frameId, ':', {
+          "Original Source Factory Corporation": sharedImages,
+          "Metabread Co., Ltd.": sharedImages,
+        });
+      } catch (error) {
+        console.error('[DualCompanyViewer] Error loading images:', error);
+        // Set empty images on error
+        const emptyImages = {
+          front: '',
+          back: '',
+          "front-right": '',
+          "front-left": '',
+          "back-right": '',
+          "back-left": '',
+        };
+        setImageUrls({
+          "Original Source Factory Corporation": emptyImages,
+          "Metabread Co., Ltd.": emptyImages,
+        });
+      }
+    };
+
+    loadImages();
 
     if (showPointCloud) {
       initializeDualVisualization()
@@ -353,11 +376,18 @@ const cleanup = () => {
     const pointClouds = await loadPointCloudForViewMode()
 
     if (pointClouds) {
+      console.log(`[initializeSingleView] Adding point clouds to scene:`, pointClouds);
       if (Array.isArray(pointClouds)) {
-        pointClouds.forEach((pc) => scene.add(pc))
+        pointClouds.forEach((pc, index) => {
+          console.log(`[initializeSingleView] Adding point cloud ${index}:`, pc);
+          scene.add(pc);
+        });
       } else {
+        console.log(`[initializeSingleView] Adding single point cloud:`, pointClouds);
         scene.add(pointClouds)
       }
+    } else {
+      console.warn(`[initializeSingleView] No point clouds to add to scene`);
     }
 
     // Add grid and axes
@@ -457,14 +487,14 @@ const cleanup = () => {
     setupLighting(leftScene)
     setupLighting(rightScene)
 
-    // Load point clouds for both companies
-    const dualData = await loadDualCompanyPointClouds(serialNumber, (company, progress) => {
+    // Load point clouds for both companies using frameId
+    const dualData = await loadDualCompanyPointClouds(serialNumber, frameId, (company, progress) => {
       setLoadingProgress((prev) => ({ ...prev, [company]: progress }))
     })
 
     // Add Original Source Factory Corporation data to left scene
     if (dualData.originalSource) {
-      const leftPointCloud = await createPointCloudFromData(dualData.originalSource, "Original Source Factory Corporation")
+      const leftPointCloud = await createPointCloudMesh(dualData.originalSource, "Original Source Factory Corporation")
       if (leftPointCloud) {
         leftPointCloud.position.x = -5; // shift left cloud to left side
         leftScene.add(leftPointCloud);
@@ -477,7 +507,7 @@ const cleanup = () => {
 
     // Add Metabread Co., Ltd. data to right scene
     if (dualData.kr) {
-      const rightPointCloud = await createPointCloudFromData(dualData.kr, "Metabread Co., Ltd.")
+      const rightPointCloud = await createPointCloudMesh(dualData.kr, "Metabread Co., Ltd.")
       if (rightPointCloud) {
         rightPointCloud.position.x = 5; // shift right cloud to right side
         rightScene.add(rightPointCloud);
@@ -502,60 +532,61 @@ const cleanup = () => {
     startSplitAnimation(leftCamera, leftRenderer, leftScene, rightCamera, rightRenderer, rightScene)
   }
 
-  const loadPointCloudForViewMode = async () => {
-    const assets = getDualCompanyAssets(serialNumber)
+  const loadPointCloudForViewMode = async (): Promise<THREE.Points | THREE.Points[] | null> => {
+    try {
+      setLoadingMessage("Loading point cloud data...")
+      
+      // Use frameId when loading dual company point clouds
+      const dualData = await loadDualCompanyPointClouds(serialNumber, frameId, (company, progress) => {
+        setLoadingProgress((prev) => ({ ...prev, [company]: progress }))
+      })
 
-    switch (viewMode) {
-      case "single-original":
-        setLoadingMessage("Loading Data...")
-        const originalData = await loadDualCompanyPointClouds(serialNumber)
-        if (originalData.originalSource) {
-          return await createPointCloudFromData(originalData.originalSource, "Original Source Factory Corporation")
+      if (viewMode === "single-original") {
+        if (dualData.originalSource) {
+          setPointCounts({ "Original Source Factory Corporation": dualData.originalSource.pointCount })
+          return createPointCloudMesh(dualData.originalSource, "Original Source Factory Corporation")
         }
-        return createFallbackPointCloud("Original Source Factory Corporation")
-
-      case "single-kr":
-        setLoadingMessage("Loading Data...")
-        const krData = await loadDualCompanyPointClouds(serialNumber)
-        if (krData.kr) {
-          return await createPointCloudFromData(krData.kr, "Metabread Co., Ltd.")
+      } else if (viewMode === "single-kr") {
+        if (dualData.kr) {
+          setPointCounts({ "Metabread Co., Ltd.": dualData.kr.pointCount })
+          return createPointCloudMesh(dualData.kr, "Metabread Co., Ltd.")
         }
-        return createFallbackPointCloud("Metabread Co., Ltd.")
-
-      case "overlay":
-        setLoadingMessage("Loading Both Companies Data for Overlay...")
-        const bothData = await loadDualCompanyPointClouds(serialNumber)
-        const pointClouds = []
-
-        if (bothData.originalSource) {
-          const originalPC = await createPointCloudFromData(bothData.originalSource, "Original Source Factory Corporation")
-          if (originalPC) {
-            originalPC.position.x = -5 // Offset for clarity
-            pointClouds.push(originalPC)
-          }
+      } else if (viewMode === "overlay") {
+        const meshes: THREE.Points[] = []
+        if (dualData.originalSource) {
+          const originalMesh = createPointCloudMesh(dualData.originalSource, "Original Source Factory Corporation")
+          meshes.push(originalMesh)
         }
-
-        if (bothData.kr) {
-          const krPC = await createPointCloudFromData(bothData.kr, "Metabread Co., Ltd.")
-          if (krPC) {
-            krPC.position.x = 5 // Offset for clarity
-            pointClouds.push(krPC)
-          }
+        if (dualData.kr) {
+          const krMesh = createPointCloudMesh(dualData.kr, "Metabread Co., Ltd.")
+          // Offset KR data slightly for overlay visibility
+          krMesh.position.set(0.1, 0, 0.1)
+          meshes.push(krMesh)
         }
+        setPointCounts({
+          "Original Source Factory Corporation": dualData.originalSource?.pointCount || 0,
+          "Metabread Co., Ltd.": dualData.kr?.pointCount || 0,
+        })
+        return meshes
+      }
 
-        return pointClouds.length > 0 ? pointClouds : [createFallbackPointCloud("Combined")]
-
-      default:
-        return createFallbackPointCloud("Default")
+      return null
+    } catch (error) {
+      console.error("Error loading point cloud data:", error)
+      setLoadingMessage("Error loading point cloud data")
+      return null
     }
   }
 
-  const createPointCloudFromData = async (data: PointCloudData, company: string) => {
+  const createPointCloudMesh = (data: PointCloudData, company: string): THREE.Points => {
+    console.log(`[createPointCloudMesh] Creating mesh for ${company} with ${data.pointCount} points`);
+    
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute("position", new THREE.BufferAttribute(data.vertices, 3))
 
     if (data.colors) {
       geometry.setAttribute("color", new THREE.BufferAttribute(data.colors, 3))
+      console.log(`[createPointCloudMesh] Added colors for ${company}`);
     }
 
     // Company-specific coloring
@@ -571,9 +602,16 @@ const cleanup = () => {
       alphaTest: 0.1,
     })
 
-    setPointCounts((prev) => ({ ...prev, [company]: data.pointCount }))
     const points = new THREE.Points(geometry, material)
     points.rotation.x = -Math.PI / 2
+
+    console.log(`[createPointCloudMesh] Created mesh for ${company}:`, {
+      pointCount: data.pointCount,
+      hasColors: !!data.colors,
+      baseColor: baseColor.toString(16),
+      position: points.position,
+      rotation: points.rotation
+    });
 
     return points
   }

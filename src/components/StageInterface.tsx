@@ -5,7 +5,7 @@ import { useState } from "react"
 import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3 } from "lucide-react"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
-import { generateFrameData } from "../data/mockData"
+import { serialDataService } from "../services/serialDataService"
 
 interface StageInterfaceProps {
   stage: Stage
@@ -19,7 +19,7 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
   const [selectedFunction, setSelectedFunction] = useState(0)
   const [viewMode, setViewMode] = useState<"single-original" | "single-kr" | "split" | "overlay">("single-original")
 
-  const frameData = selectedSerial ? generateFrameData(selectedSerial.serialNumber) : []
+  const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
 
   // Determine which company's data to show based on current view mode
   const companyForView = viewMode === "single-kr" ? "Metabread Co., Ltd." : "Original Source Factory Corporation";
