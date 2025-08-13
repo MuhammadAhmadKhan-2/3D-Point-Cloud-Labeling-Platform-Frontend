@@ -367,16 +367,24 @@ class SerialDataService {
     hasImages: boolean;
   }> {
     try {
+      console.log(`Fetching images for serial ${serialNumber}, frame ${frameNumber}`);
       const response = await axios.get(
         `${API_BASE_URL}/serials/images/${serialNumber}?frame=${frameNumber}`,
         { headers: this.getAuthHeaders() }
       );
 
-      if (response.data.success) {
-        return response.data.data;
+      console.log('API response:', response.data);
+      
+      if (response.data && response.data.success && response.data.data) {
+        // Make sure we're returning the correct structure
+        return {
+          frame: frameNumber,
+          images: response.data.data.images || {},
+          hasImages: response.data.data.hasImages || false
+        };
       }
 
-      // Return empty data if API call fails
+      // Return empty data if API call fails or returns unexpected structure
       return {
         frame: frameNumber,
         images: {

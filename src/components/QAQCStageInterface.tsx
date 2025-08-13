@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3, Filter, Zap, TrendingUp, Layers, Play, Download, FolderOpen, Upload } from "lucide-react"
+import { ProcessingSimulationModal } from "./ProcessingSimulationModal"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
 import { serialDataService } from "../services/serialDataService"
@@ -27,6 +28,11 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [isBatchProcessingActive, setIsBatchProcessingActive] = useState(false)
   const [processingProgress, setProcessingProgress] = useState(0)
   const [activeProcessing, setActiveProcessing] = useState<string | null>(null)
+  
+  // Simulation modal states
+  const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false)
+  const [simulationProcessName, setSimulationProcessName] = useState('')
+  const [simulationDuration, setSimulationDuration] = useState(5000)
 
   const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
 
@@ -64,6 +70,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     setIsNoiseRemovalActive(!isNoiseRemovalActive)
     if (!isNoiseRemovalActive) {
       simulateProcessing('Noise Removal')
+      setSimulationProcessName('Noise Removal')
+      setSimulationDuration(5000)
+      setIsSimulationModalOpen(true)
     }
   }
 
@@ -71,6 +80,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     setIsSurfaceSmoothingActive(!isSurfaceSmoothingActive)
     if (!isSurfaceSmoothingActive) {
       simulateProcessing('Surface Smoothing')
+      setSimulationProcessName('Surface Smoothing')
+      setSimulationDuration(6000)
+      setIsSimulationModalOpen(true)
     }
   }
 
@@ -78,6 +90,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     setIsDensityEnhancementActive(!isDensityEnhancementActive)
     if (!isDensityEnhancementActive) {
       simulateProcessing('Density Enhancement')
+      setSimulationProcessName('Density Enhancement')
+      setSimulationDuration(7000)
+      setIsSimulationModalOpen(true)
     }
   }
 
@@ -85,6 +100,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     setIsSurfaceReconstructionActive(!isSurfaceReconstructionActive)
     if (!isSurfaceReconstructionActive) {
       simulateProcessing('Surface Reconstruction', 5000)
+      setSimulationProcessName('Surface Reconstruction')
+      setSimulationDuration(9000)
+      setIsSimulationModalOpen(true)
     }
   }
 
@@ -92,6 +110,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     setIsBatchProcessingActive(!isBatchProcessingActive)
     if (!isBatchProcessingActive) {
       simulateProcessing('Batch Processing', 8000)
+      setSimulationProcessName('Batch Processing')
+      setSimulationDuration(10000)
+      setIsSimulationModalOpen(true)
     }
   }
 
@@ -179,6 +200,14 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
             </div>
           </div>
         </div>
+        
+        {/* Processing Simulation Modal */}
+        <ProcessingSimulationModal
+          isOpen={isSimulationModalOpen}
+          onClose={() => setIsSimulationModalOpen(false)}
+          processName={simulationProcessName}
+          duration={simulationDuration}
+        />
       </div>
       {/* Main content remains unchanged for now */}
       {displayedSerial ? (

@@ -219,10 +219,10 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
         const { serialDataService } = await import('../services/serialDataService');
         const frameData = await serialDataService.getFrameImages(serialNumber, frameId);
         
-        // Check if any images exist in the response
-        const hasImages = Object.values(frameData.images).some(url => url && url.length > 0);
+        console.log('[DualCompanyViewer] Frame data received:', frameData);
         
-        if (hasImages) {
+        // Use the hasImages property from the API response
+        if (frameData.hasImages) {
           setImageUrls(frameData.images);
           console.log('[DualCompanyViewer] Loaded images for frame', frameId, ':', frameData.images);
         } else {
