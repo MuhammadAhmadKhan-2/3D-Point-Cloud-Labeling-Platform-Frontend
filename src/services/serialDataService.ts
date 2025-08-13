@@ -23,7 +23,6 @@ export interface BackendFrame {
     'back-left'?: string;
     'back-right'?: string;
   };
-  // Added these properties based on how they're used in getSerialAssets
   frontImage?: string;
   backImage?: string;
   frontLeftImage?: string;
@@ -47,49 +46,88 @@ export interface SerialAssets {
 }
 
 class SerialDataService {
+  async getFrameImages(serialNumber: string, frameNumber: number): Promise<{
+    frame: number;
+    images: {
+      front: string;
+      back: string;
+      'front-right': string;
+      'front-left': string;
+      'back-right': string;
+      'back-left': string;
+    };
+    hasImages: boolean;
+  }> {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/serials/images/${serialNumber}?frame=${frameNumber}`,
+        {
+          headers: this.getAuthHeaders(),
+        }
+      );
+      
+      const emptyImages = {
+        front: '',
+        back: '',
+        'front-right': '',
+        'front-left': '',
+        'back-right': '',
+        'back-left': '',
+      };
+      
+      // Check if we have data and images in the response
+      if (response.data && response.data.data) {
+        return {
+          frame: frameNumber,
+          images: response.data.data.images || emptyImages,
+          hasImages: response.data.data.hasImages || false
+        };
+      }
+      
+      return {
+        frame: frameNumber,
+        images: emptyImages,
+        hasImages: false
+      };
+    } catch (error) {
+      console.error(`Error fetching images for frame ${frameNumber}:`, error);
+      // Return empty data on API call failure
+      return {
+        frame: frameNumber,
+        images: {
+          front: '',
+          back: '',
+          'front-right': '',
+          'front-left': '',
+          'back-right': '',
+          'back-left': '',
+        },
+        hasImages: false
+      };
+    }
+  }
+
   private getAuthHeaders() {
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     return {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` })
+      ...(token && { Authorization: `Bearer ${token}` }),
     };
   }
 
-  /**
-   * Fetch all serials from backend
-   */
   async fetchSerials(): Promise<BackendSerial[]> {
     try {
-      console.log('[fetchSerials] Fetching serials from backend...');
+      console.log('[fetchSerials] Fetching serials...');
       const response = await axios.get(`${API_BASE_URL}/serials`, {
         headers: this.getAuthHeaders(),
       });
-      
-      const serials = response.data.data.serials;
-      console.log('[fetchSerials] Backend response:', {
-        totalSerials: serials.length,
-        firstSerial: serials[0] ? {
-          serialNumber: serials[0].serialNumber,
-          hasFrames: !!serials[0].frames,
-          framesLength: serials[0].frames?.length || 0,
-          hasPcdFileA: !!serials[0].pcdFileA,
-          hasPcdFileB: !!serials[0].pcdFileB,
-          pcdFileA: serials[0].pcdFileA,
-          pcdFileB: serials[0].pcdFileB,
-          keys: Object.keys(serials[0])
-        } : null
-      });
-      
-      return serials;
+      return response.data.data.serials;
     } catch (error) {
       console.error('Error fetching serials:', error);
       throw error;
     }
   }
 
-  /**
-   * Fetch a specific serial by ID
-   */
   async fetchSerialById(serialId: string): Promise<BackendSerial> {
     try {
       const response = await axios.get(`${API_BASE_URL}/serials/${serialId}`, {
@@ -102,173 +140,177 @@ class SerialDataService {
     }
   }
 
-  /**
-   * Get assets for a specific serial, stage, and frame
-   */
-  getSerialAssets(
+  async getSerialAssets(
     serial: BackendSerial,
-    stage: "preprocessing" | "refinement",
-    frameNumber: number = 1
-  ): SerialAssets {
-    // Determine company based on stage
-    const company = stage === "preprocessing" ? "Original Source Factory Corporation" : "Metabread Co., Ltd.";
-    
-    // Get the correct point cloud file based on stage
-    const pointCloudUrl = stage === "preprocessing" ? serial.pcdFileA : serial.pcdFileB;
-    
-    // Get frame data (frameNumber is 1-based, but array is 0-based)
-    const frameIndex = Math.max(0, Math.min(frameNumber - 1, serial.frames.length - 1));
+    stage: 'preprocessing' | 'refinement',
+    frameNumber = 1
+  ): Promise<SerialAssets> {
+    const company =
+      stage === 'preprocessing'
+        ? 'Original Source Factory Corporation'
+        : 'Metabread Co., Ltd.';
+
+    const pointCloudUrl =
+      stage === 'preprocessing' ? serial.pcdFileA : serial.pcdFileB;
+
+    const frameIndex = Math.max(
+      0,
+      Math.min(frameNumber - 1, serial.frames.length - 1)
+    );
     const frame = serial.frames[frameIndex];
-    
+
     if (!frame) {
-      console.warn(`Frame ${frameNumber} not found for serial ${serial.serialNumber}`);
       return {
         pointCloudUrl: pointCloudUrl || '',
         images: {
           front: '',
           back: '',
-          "front-right": '',
-          "front-left": '',
-          "back-right": '',
-          "back-left": '',
+          'front-right': '',
+          'front-left': '',
+          'back-right': '',
+          'back-left': '',
         },
         exists: false,
         company,
       };
     }
 
+    const getProxyUrl = async (key: string) => {
+      if (!key) return '';
+      const { getEncodedImageUrl } = await import('../utils/imageUrlUtils');
+
+      if (key.includes('s3.ap-northeast-2.amazonaws.com/mern-s3-uploads/')) {
+        return await getEncodedImageUrl(key).catch(() => key);
+      }
+
+      if (key.includes('Original Source Factory Corporation') || key.includes(' ')) {
+        return await getEncodedImageUrl(key).catch(() => key.replace(/\s+/g, '%20'));
+      }
+
+      return `${API_BASE_URL}/files/s3-signed/${encodeURIComponent(key)}`;
+    };
+
+    const getImages = async (frame: BackendFrame) => {
+      const [front, back, frontRight, frontLeft, backRight, backLeft] =
+        await Promise.all([
+          getProxyUrl(frame.frontImage || frame.images?.front || ''),
+          getProxyUrl(frame.backImage || frame.images?.back || ''),
+          getProxyUrl(frame.frontRightImage || frame.images?.['front-right'] || ''),
+          getProxyUrl(frame.frontLeftImage || frame.images?.['front-left'] || ''),
+          getProxyUrl(frame.backRightImage || frame.images?.['back-right'] || ''),
+          getProxyUrl(frame.backLeftImage || frame.images?.['back-left'] || ''),
+        ]);
+
+      return {
+        front,
+        back,
+        'front-right': frontRight,
+        'front-left': frontLeft,
+        'back-right': backRight,
+        'back-left': backLeft,
+      };
+    };
+
+    const images = await getImages(frame);
+
     return {
       pointCloudUrl: pointCloudUrl || '',
-      images: {
-        front: frame.frontImage || frame.images?.front || '',
-        back: frame.backImage || frame.images?.back || '',
-        "front-right": frame.frontRightImage || frame.images?.['front-right'] || '',
-        "front-left": frame.frontLeftImage || frame.images?.['front-left'] || '',
-        "back-right": frame.backRightImage || frame.images?.['back-right'] || '',
-        "back-left": frame.backLeftImage || frame.images?.['back-left'] || '',
-      },
+      images,
       exists: true,
       company,
     };
   }
-  
-  /**
-   * Get assets for both companies for comparison view
-   */
-  getDualCompanyAssets(
-    serial: BackendSerial,
-    frameNumber: number = 1
-  ): {
-    originalSource: SerialAssets;
-    kr: SerialAssets;
-  } {
-    // Debug logging to understand the actual data structure
-    console.log(`[getDualCompanyAssets] Serial ${serial.serialNumber}:`, {
-      framesLength: serial.frames?.length || 0,
-      requestedFrame: frameNumber,
-      pcdFileA: serial.pcdFileA,
-      pcdFileB: serial.pcdFileB,
-      pcdFileAType: typeof serial.pcdFileA,
-      pcdFileBType: typeof serial.pcdFileB,
-      firstFrame: serial.frames?.[0],
-      frameAtIndex0: serial.frames?.[0]?.frameNumber,
-      frameAtIndex1: serial.frames?.[1]?.frameNumber,
-      allFrameNumbers: serial.frames?.map(f => f.frameNumber).slice(0, 5) // Show first 5 frame numbers
-    });
 
+  async getDualCompanyAssets(
+    serial: BackendSerial,
+    frameNumber = 1
+  ): Promise<{ originalSource: SerialAssets; kr: SerialAssets }> {
     const emptyImages = {
       front: '',
       back: '',
-      "front-right": '',
-      "front-left": '',
-      "back-right": '',
-      "back-left": '',
+      'front-right': '',
+      'front-left': '',
+      'back-right': '',
+      'back-left': '',
     };
 
-    // Extract URL from pcdFileA and pcdFileB if they are objects
-    const pcdFileAUrl = typeof serial.pcdFileA === 'object' && serial.pcdFileA !== null 
-      ? (serial.pcdFileA as any).url || (serial.pcdFileA as any).path || String(serial.pcdFileA)
-      : String(serial.pcdFileA || '');
-      
-    const pcdFileBUrl = typeof serial.pcdFileB === 'object' && serial.pcdFileB !== null 
-      ? (serial.pcdFileB as any).url || (serial.pcdFileB as any).path || String(serial.pcdFileB)
-      : String(serial.pcdFileB || '');
+    const pcdFileAUrl =
+      typeof serial.pcdFileA === 'object' && serial.pcdFileA !== null
+        ? (serial.pcdFileA as any).url || (serial.pcdFileA as any).path || String(serial.pcdFileA)
+        : String(serial.pcdFileA || '');
 
-    console.log(`[getDualCompanyAssets] Extracted URLs:`, {
-      pcdFileAUrl,
-      pcdFileBUrl
-    });
+    const pcdFileBUrl =
+      typeof serial.pcdFileB === 'object' && serial.pcdFileB !== null
+        ? (serial.pcdFileB as any).url || (serial.pcdFileB as any).path || String(serial.pcdFileB)
+        : String(serial.pcdFileB || '');
 
-    // Always return point cloud URLs even if frames don't exist
     const baseResult = {
       originalSource: {
         pointCloudUrl: pcdFileAUrl,
         images: emptyImages,
         exists: !!pcdFileAUrl,
-        company: "Original Source Factory Corporation",
+        company: 'Original Source Factory Corporation',
       },
       kr: {
         pointCloudUrl: pcdFileBUrl,
         images: emptyImages,
         exists: !!pcdFileBUrl,
-        company: "Metabread Co., Ltd.",
+        company: 'Metabread Co., Ltd.',
       },
     };
 
-    // Check if frames array exists and has data
     if (!serial.frames || serial.frames.length === 0) {
-      console.warn(`No frames found for serial ${serial.serialNumber}. Using point cloud files only.`);
       return baseResult;
     }
 
-    // Find frame by frameNumber property instead of array index
-    let frame = serial.frames.find(f => f.frameNumber === frameNumber);
-    
-    // If not found by frameNumber, try to find the first available frame
-    if (!frame && serial.frames.length > 0) {
-      frame = serial.frames[0]; // Use the first available frame
-      console.log(`[getDualCompanyAssets] Frame ${frameNumber} not found, using first available frame: ${frame.frameNumber}`);
-    }
-    
-    if (!frame) {
-      console.warn(`Frame ${frameNumber} not found for serial ${serial.serialNumber}. Available frames: ${serial.frames.length}. Using point cloud files only.`);
-      return baseResult;
-    }
+    let frame = serial.frames.find(f => f.frameNumber === frameNumber) || serial.frames[0];
+    if (!frame) return baseResult;
 
-    console.log(`[getDualCompanyAssets] Found frame:`, frame);
+    const getProxyUrl = async (key: string) => {
+      if (!key) return '';
+      const { getEncodedImageUrl } = await import('../utils/imageUrlUtils');
 
-    const getImages = (frame: BackendFrame) => ({
-      front: frame.frontImage || frame.images?.front || '',
-      back: frame.backImage || frame.images?.back || '',
-      "front-right": frame.frontRightImage || frame.images?.['front-right'] || '',
-      "front-left": frame.frontLeftImage || frame.images?.['front-left'] || '',
-      "back-right": frame.backRightImage || frame.images?.['back-right'] || '',
-      "back-left": frame.backLeftImage || frame.images?.['back-left'] || '',
-    });
+      if (key.includes('s3.ap-northeast-2.amazonaws.com/mern-s3-uploads/')) {
+        return await getEncodedImageUrl(key).catch(() => key);
+      }
 
-    const result = {
-      originalSource: {
-        pointCloudUrl: pcdFileAUrl,
-        images: getImages(frame),
-        exists: !!pcdFileAUrl,
-        company: "Original Source Factory Corporation",
-      },
-      kr: {
-        pointCloudUrl: pcdFileBUrl,
-        images: getImages(frame),
-        exists: !!pcdFileBUrl,
-        company: "Metabread Co., Ltd.",
-      },
+      if (key.includes('Original Source Factory Corporation') || key.includes(' ')) {
+        return await getEncodedImageUrl(key).catch(() => key.replace(/\s+/g, '%20'));
+      }
+
+      return `${API_BASE_URL}/files/s3-signed/${encodeURIComponent(key)}`;
     };
 
-    console.log(`[getDualCompanyAssets] Final result:`, result);
-    return result;
+    const getImages = async (frame: BackendFrame) => {
+      const [front, back, frontRight, frontLeft, backRight, backLeft] =
+        await Promise.all([
+          getProxyUrl(frame.frontImage || frame.images?.front || ''),
+          getProxyUrl(frame.backImage || frame.images?.back || ''),
+          getProxyUrl(frame.frontRightImage || frame.images?.['front-right'] || ''),
+          getProxyUrl(frame.frontLeftImage || frame.images?.['front-left'] || ''),
+          getProxyUrl(frame.backRightImage || frame.images?.['back-right'] || ''),
+          getProxyUrl(frame.backLeftImage || frame.images?.['back-left'] || ''),
+        ]);
+
+      return {
+        front,
+        back,
+        'front-right': frontRight,
+        'front-left': frontLeft,
+        'back-right': backRight,
+        'back-left': backLeft,
+      };
+    };
+
+    const images = await getImages(frame);
+
+    return {
+      originalSource: { ...baseResult.originalSource, images },
+      kr: { ...baseResult.kr, images },
+    };
   }
 
-  /**
-   * Get all available serials as options for dropdowns
-   */
-  async getSerialOptions(): Promise<Array<{ id: string; serialNumber: string; }>> {
+  async getSerialOptions(): Promise<Array<{ id: string; serialNumber: string }>> {
     try {
       const serials = await this.fetchSerials();
       return serials.map(serial => ({
@@ -281,24 +323,14 @@ class SerialDataService {
     }
   }
 
-  /**
-   * Generate frame data for a serial (30 frames with status)
-   */
   generateFrameData(serialNumber: string) {
-    const frames = [];
-    for (let i = 1; i <= 30; i++) {
-      frames.push({
-        id: i,
-        timestamp: `${serialNumber}-frame-${i.toString().padStart(3, "0")}`,
-        status: i <= 20 ? "labeled" : i <= 25 ? "reviewing" : "pending",
-      });
-    }
-    return frames;
+    return Array.from({ length: 30 }, (_, i) => ({
+      id: i + 1,
+      timestamp: `${serialNumber}-frame-${(i + 1).toString().padStart(3, '0')}`,
+      status: i < 20 ? 'labeled' : i < 25 ? 'reviewing' : 'pending',
+    }));
   }
 
-  /**
-   * Check if an image URL exists and is accessible
-   */
   async checkImageExists(url: string): Promise<boolean> {
     if (!url) return false;
     try {
@@ -309,25 +341,69 @@ class SerialDataService {
     }
   }
 
-  /**
-   * Get file size information for a URL
-   */
   async checkFileSize(url: string): Promise<{ exists: boolean; size: number; sizeMB: string }> {
-    if (!url) return { exists: false, size: 0, sizeMB: "0" };
-    
+    if (!url) return { exists: false, size: 0, sizeMB: '0' };
     try {
       const response = await fetch(url, { method: 'HEAD' });
-      if (!response.ok) {
-        return { exists: false, size: 0, sizeMB: "0" };
+      if (!response.ok) return { exists: false, size: 0, sizeMB: '0' };
+
+      const size = parseInt(response.headers.get('content-length') || '0', 10);
+      return { exists: true, size, sizeMB: (size / 1024 / 1024).toFixed(1) };
+    } catch {
+      return { exists: false, size: 0, sizeMB: '0' };
+    }
+  }
+
+  async getFrameImages(serialNumber: string, frameNumber: number): Promise<{
+    frame: number;
+    images: {
+      front: string;
+      back: string;
+      'front-right': string;
+      'front-left': string;
+      'back-right': string;
+      'back-left': string;
+    };
+    hasImages: boolean;
+  }> {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/serials/images/${serialNumber}?frame=${frameNumber}`,
+        { headers: this.getAuthHeaders() }
+      );
+
+      if (response.data.success) {
+        return response.data.data;
       }
 
-      const contentLength = response.headers.get("content-length");
-      const size = contentLength ? parseInt(contentLength) : 0;
-      const sizeMB = (size / 1024 / 1024).toFixed(1);
-
-      return { exists: true, size, sizeMB };
-    } catch {
-      return { exists: false, size: 0, sizeMB: "0" };
+      // Return empty data if API call fails
+      return {
+        frame: frameNumber,
+        images: {
+          front: '',
+          back: '',
+          'front-right': '',
+          'front-left': '',
+          'back-right': '',
+          'back-left': '',
+        },
+        hasImages: false
+      };
+    } catch (error) {
+      console.error(`Error fetching images for frame ${frameNumber}:`, error);
+      // Return empty data on error
+      return {
+        frame: frameNumber,
+        images: {
+          front: '',
+          back: '',
+          'front-right': '',
+          'front-left': '',
+          'back-right': '',
+          'back-left': '',
+        },
+        hasImages: false
+      };
     }
   }
 }

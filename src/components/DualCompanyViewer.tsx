@@ -5,8 +5,9 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react
 import * as THREE from "three"
 // @ts-ignore
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import { Maximize2, RotateCcw, Download, Settings, Eye, Split, Layers, Move } from "lucide-react"
+import { Maximize2, RotateCcw, Download, Eye, Split, Layers, Move } from "lucide-react"
 import { getDualCompanyAssets, getSerialAssets, loadDualCompanyPointClouds, type PointCloudData } from "../utils/dataLoader"
+import { getEncodedImageUrl } from "../utils/imageUrlUtils"
 
 interface DualCompanyViewerProps {
   serialNumber: string
@@ -33,11 +34,11 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   // New: processing overlay state
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingMessage, setProcessingMessage] = useState("")
-  // Store 6 image URLs per company (front, back, front-left, front-right, back-left, back-right)
-  const [imageUrls, setImageUrls] = useState<{ [company: string]: { [view: string]: string } }>({})
+  // Store 6 image URLs (front, back, front-left, front-right, back-left, back-right)
+  const [imageUrls, setImageUrls] = useState<{ [view: string]: string }>({})
   const [imageErrors, setImageErrors] = useState<{ [key: string]: string | null }>({})
   const [imageLoaded, setImageLoaded] = useState<{ [key: string]: boolean }>({})
-  const [loadingMessage, setLoadingMessage] = useState("Loading Dual Company Data...")
+  const [loadingMessage, setLoadingMessage] = useState("Loading Data...")
   const [fileSizes, setFileSizes] = useState<{ [key: string]: string }>({})
 
   // Scene references for different view modes
@@ -209,36 +210,44 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
     setImageErrors({}) // Reset image error state on serial/view change
     setLoadingProgress({})
 
-    // Get assets for both companies using getDualCompanyAssets with frameId
+    // Load images for the current frame using the new API endpoint
     const loadImages = async () => {
       try {
-        const dualAssets = await getDualCompanyAssets(serialNumber, frameId);
-        // Use the same images for both companies since they should be identical
-        const sharedImages = dualAssets.originalSource.images;
-        setImageUrls({
-          "Original Source Factory Corporation": sharedImages,
-          "Metabread Co., Ltd.": sharedImages,
-        });
+        console.log(`[DualCompanyViewer] Loading images for serial ${serialNumber}, frame ${frameId}`);
         
-        console.log('[DualCompanyViewer] Using shared imageUrls for frame', frameId, ':', {
-          "Original Source Factory Corporation": sharedImages,
-          "Metabread Co., Ltd.": sharedImages,
-        });
+        // Use the new frame-level image loading service
+        const { serialDataService } = await import('../services/serialDataService');
+        const frameData = await serialDataService.getFrameImages(serialNumber, frameId);
+        
+        // Check if any images exist in the response
+        const hasImages = Object.values(frameData.images).some(url => url && url.length > 0);
+        
+        if (hasImages) {
+          setImageUrls(frameData.images);
+          console.log('[DualCompanyViewer] Loaded images for frame', frameId, ':', frameData.images);
+        } else {
+          console.warn('[DualCompanyViewer] No images available for frame', frameId);
+          const emptyImages = {
+            front: '',
+            back: '',
+            'front-right': '',
+            'front-left': '',
+            'back-right': '',
+            'back-left': '',
+          };
+          setImageUrls(emptyImages);
+        }
       } catch (error) {
         console.error('[DualCompanyViewer] Error loading images:', error);
-        // Set empty images on error
         const emptyImages = {
           front: '',
           back: '',
-          "front-right": '',
-          "front-left": '',
-          "back-right": '',
-          "back-left": '',
+          'front-right': '',
+          'front-left': '',
+          'back-right': '',
+          'back-left': '',
         };
-        setImageUrls({
-          "Original Source Factory Corporation": emptyImages,
-          "Metabread Co., Ltd.": emptyImages,
-        });
+        setImageUrls(emptyImages);
       }
     };
 
@@ -1109,21 +1118,24 @@ const cleanup = () => {
 
   if (!showPointCloud) {
     const views = ["front", "back", "front-right", "front-left", "back-right", "back-left"];
+    
+    const companiesToRender = 
+      viewMode === 'split' 
+        ? ["Original Source Factory Corporation", "Metabread Co., Ltd."]
+        : viewMode === 'single-original'
+        ? ["Original Source Factory Corporation"]
+        : ["Metabread Co., Ltd."];
+
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-900 overflow-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 p-4">
-          {(
-              viewMode === "single-original"
-                ? Object.entries(imageUrls).filter(([c]) => c === "Original Source Factory Corporation")
-                : viewMode === "single-kr"
-                  ? Object.entries(imageUrls).filter(([c]) => c === "Metabread Co., Ltd.")
-                  : Object.entries(imageUrls)
-            ).map(([company, urls]) => (
+          {companiesToRender.map((company) => (
             <div key={company} className="bg-gray-800 rounded-lg p-4 shadow-lg ring-1 ring-gray-700/50 flex flex-col">
               
               <div className="grid grid-cols-2 md:grid-cols-2 gap-3 flex-1">
                 {views.map((view) => {
                   const errorKey = `${company}-${view}`;
+                  const imageUrl = imageUrls[view];
                   return (
                     <div key={view} className="relative pt-[56.25%] bg-gray-900 rounded-lg overflow-hidden group">
                       {imageErrors[errorKey] ? (
@@ -1131,19 +1143,24 @@ const cleanup = () => {
                           <div className="text-xs font-semibold">Image not found</div>
                           <div className="text-[10px]">{company} {view}</div>
                         </div>
+                      ) : !imageUrl ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white z-10">
+                          <div className="text-xs font-semibold">No image for Frame {frameId}</div>
+                          <div className="text-[10px]">{company} {view}</div>
+                        </div>
                       ) : (
                         <img
                           key={`${serialNumber}-${frameId}-${company}-${view}`}
-                          src={urls[view] || "/placeholder.svg"}
+                          src={imageUrl}
                           alt={`${company} ${view}`}
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                           onLoad={() => {
                             setImageLoaded((prev) => ({ ...prev, [errorKey]: true }));
-                            console.log(`[DualCompanyViewer] Image loaded:`, urls[view], errorKey);
+                            console.log(`[DualCompanyViewer] Image loaded: ${company}-${view}`, imageUrl);
                           }}
                           onError={() => {
                             setImageErrors((prev) => ({ ...prev, [errorKey]: 'Image not found or failed to load.' }));
-                            console.error(`[DualCompanyViewer] Image failed to load:`, urls[view], errorKey);
+                            console.error(`[DualCompanyViewer] Image failed to load: ${company}-${view}`);
                           }}
                         />
                       )}

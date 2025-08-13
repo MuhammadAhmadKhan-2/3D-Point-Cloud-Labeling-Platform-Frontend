@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3 } from "lucide-react"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
@@ -18,8 +18,38 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
   const [showPointCloud, setShowPointCloud] = useState(true)
   const [selectedFunction, setSelectedFunction] = useState(0)
   const [viewMode, setViewMode] = useState<"single-original" | "single-kr" | "split" | "overlay">("single-original")
+  const [availableFrames, setAvailableFrames] = useState<number[]>([])
+  const [frameLoading, setFrameLoading] = useState(false)
 
+  // Generate frame data for UI display
   const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
+
+  // Fetch available frames when a serial is selected
+  useEffect(() => {
+    if (!selectedSerial) {
+      setAvailableFrames([]);
+      return;
+    }
+
+    const fetchFrames = async () => {
+      setFrameLoading(true);
+      try {
+        // For this implementation, we'll use a fixed number of frames (30)
+        // In a real implementation, you would fetch the actual available frames from the backend
+        const frames = Array.from({ length: 30 }, (_, i) => i + 1);
+        setAvailableFrames(frames);
+        // Reset to frame 1 when a new serial is selected
+        setCurrentFrame(1);
+      } catch (error) {
+        console.error('Error fetching frames:', error);
+        setAvailableFrames([1]); // Default to at least frame 1
+      } finally {
+        setFrameLoading(false);
+      }
+    };
+
+    fetchFrames();
+  }, [selectedSerial?.serialNumber]);
 
   // Determine which company's data to show based on current view mode
   const companyForView = viewMode === "single-kr" ? "Metabread Co., Ltd." : "Original Source Factory Corporation";
@@ -219,19 +249,23 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
             {/* Frame Navigation */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-blue-400">Frames ({frameData.length})</h3>
-                <div className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">Dual Company Sync</div>
+                <h3 className="text-lg font-semibold text-blue-400">Frames ({availableFrames.length})</h3>
+                <div className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">
+                  {frameLoading ? 'Loading...' : 'Frame Selection'}
+                </div>
               </div>
 
               <div className="mb-3">
                 <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
-                  <span>Frame {currentFrame}/30</span>
-                  <span className="text-blue-400 font-medium">{Math.round((currentFrame / 30) * 100)}%</span>
+                  <span>Frame {currentFrame}/{availableFrames.length || 30}</span>
+                  <span className="text-blue-400 font-medium">
+                    {Math.round((currentFrame / (availableFrames.length || 30)) * 100)}%
+                  </span>
                 </div>
                 <div className="bg-gray-700 rounded-full h-3 overflow-hidden">
                   <div
                     className="bg-gradient-to-r from-blue-500 to-teal-500 h-3 rounded-full transition-all duration-500 relative"
-                    style={{ width: `${(currentFrame / 30) * 100}%` }}
+                    style={{ width: `${(currentFrame / (availableFrames.length || 30)) * 100}%` }}
                   >
                     <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                   </div>
@@ -241,39 +275,53 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
               <div className="flex space-x-2 mb-4">
                 <button
                   onClick={() => setCurrentFrame(Math.max(1, currentFrame - 1))}
-                  disabled={currentFrame === 1}
+                  disabled={currentFrame === 1 || frameLoading}
                   className="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
                 >
                   Previous
                 </button>
                 <button
-                  onClick={() => setCurrentFrame(Math.min(30, currentFrame + 1))}
-                  disabled={currentFrame === 30}
+                  onClick={() => setCurrentFrame(Math.min(availableFrames.length || 30, currentFrame + 1))}
+                  disabled={currentFrame === (availableFrames.length || 30) || frameLoading}
                   className="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
                 >
                   Next
                 </button>
               </div>
 
-              <div className="grid grid-cols-6 gap-1">
-                {frameData.map((frame) => (
-                  <button
-                    key={frame.id}
-                    onClick={() => setCurrentFrame(frame.id)}
-                    className={`aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
-                      currentFrame === frame.id
-                        ? "bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg scale-110"
-                        : frame.status === "labeled"
-                          ? "bg-green-600 hover:bg-green-700 text-white hover:scale-105"
-                          : frame.status === "reviewing"
-                            ? "bg-yellow-600 hover:bg-yellow-700 text-white hover:scale-105"
-                            : "bg-gray-600 hover:bg-gray-500 text-gray-300 hover:scale-105"
-                    }`}
-                  >
-                    {frame.id}
-                  </button>
-                ))}
-              </div>
+              {frameLoading ? (
+                <div className="flex justify-center items-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-6 gap-1">
+                  {availableFrames.map((frameId) => {
+                    // Find the corresponding frame data for styling
+                    const frameInfo = frameData.find(f => f.id === frameId) || {
+                      id: frameId,
+                      status: 'pending'
+                    };
+                    
+                    return (
+                      <button
+                        key={frameId}
+                        onClick={() => setCurrentFrame(frameId)}
+                        className={`aspect-square text-xs rounded flex items-center justify-center transition-all duration-200 ${
+                          currentFrame === frameId
+                            ? "bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg scale-110"
+                            : frameInfo.status === "labeled"
+                              ? "bg-green-600 hover:bg-green-700 text-white hover:scale-105"
+                              : frameInfo.status === "reviewing"
+                                ? "bg-yellow-600 hover:bg-yellow-700 text-white hover:scale-105"
+                                : "bg-gray-600 hover:bg-gray-500 text-gray-300 hover:scale-105"
+                        }`}
+                      >
+                        {frameId}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Processing Status */}

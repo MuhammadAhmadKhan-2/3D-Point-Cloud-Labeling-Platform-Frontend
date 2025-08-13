@@ -91,7 +91,8 @@ export const getDualCompanyAssets = async (
       pcdFileB: serial.pcdFileB
     });
 
-    const dualAssets = serialDataService.getDualCompanyAssets(serial, frameNumber);
+    // Call the async getDualCompanyAssets method
+    const dualAssets = await serialDataService.getDualCompanyAssets(serial, frameNumber);
     
     console.log(`[dataLoader.getDualCompanyAssets] Result:`, dualAssets);
     
