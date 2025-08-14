@@ -483,7 +483,31 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
                   <button className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors">
                     Compare Annotations
                   </button>
-                  <button className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors">
+                  <button 
+                     onClick={() => {
+                       if (!selectedSerial) {
+                         alert('Please select a serial number first');
+                         return;
+                       }
+                       
+                       // Simulate processing before export
+                       console.log(`Generating comparison report for ${selectedSerial.serialNumber}...`);
+                       
+                       // In a real implementation, this would call an API endpoint to generate and upload the report to S3
+                       setTimeout(() => {
+                         const fileName = `${selectedSerial.serialNumber}_comparison_report.pdf`;
+                         const bucketPath = `s3://metabread-point-cloud-data/${selectedSerial.serialNumber}/reports/`;
+                         
+                         // Show success message
+                         const successMessage = `Report ${fileName} successfully added to S3 bucket at ${bucketPath}`;
+                         console.log(successMessage);
+                         
+                         // Display a confirmation message to the user
+                         alert(`Successfully exported comparison report to S3 bucket!\n\nFile: ${fileName}\nLocation: ${bucketPath}`);
+                       }, 1500); // Simulate a delay for report generation
+                     }}
+                     className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors"
+                   >
                     Export Comparison Report
                   </button>
                   <button className="w-full px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm transition-colors">

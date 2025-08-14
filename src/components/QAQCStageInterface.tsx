@@ -108,6 +108,32 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     }
   }
 
+  const handleExport = (format: 'ply' | 'obj' | 'glb') => {
+    if (!selectedSerial) {
+      alert('Please select a serial number first')
+      return
+    }
+
+    // Simulate processing before export
+    simulateProcessing(`Exporting ${format.toUpperCase()} File`)
+    setSimulationProcessName(`Exporting ${format.toUpperCase()} File`)
+    setSimulationDuration(3000)
+    setIsSimulationModalOpen(true)
+    
+    // In a real implementation, this would call an API endpoint to generate and upload the file to S3
+    setTimeout(() => {
+      const fileName = `${selectedSerial.serialNumber}_frame${currentFrame}.${format}`
+      const bucketPath = `s3://metabread-point-cloud-data/${selectedSerial.serialNumber}/exports/`
+      
+      // Show success message
+      const successMessage = `File ${fileName} successfully added to S3 bucket at ${bucketPath}`
+      console.log(successMessage)
+      
+      // Display a confirmation message to the user
+      alert(`Successfully exported ${format.toUpperCase()} file to S3 bucket!\n\nFile: ${fileName}\nLocation: ${bucketPath}`)
+    }, 3500) // Wait for the simulation to complete before showing confirmation
+  }
+
   const handleBatchProcessing = () => {
     setIsBatchProcessingActive(!isBatchProcessingActive)
     if (!isBatchProcessingActive) {
@@ -440,15 +466,24 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
               <div className="mt-4 p-3 bg-gradient-to-r from-gray-700 to-gray-800 rounded-lg border border-gray-600">
                 <h4 className="text-sm font-semibold text-gray-300 mb-2">Export Options</h4>
                 <div className="flex space-x-2">
-                  <button className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors flex items-center justify-center space-x-1">
+                  <button 
+                    onClick={() => handleExport('ply')}
+                    className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors flex items-center justify-center space-x-1"
+                  >
                     <Download className="w-3 h-3" />
                     <span>.PLY</span>
                   </button>
-                  <button className="flex-1 px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs transition-colors flex items-center justify-center space-x-1">
+                  <button 
+                    onClick={() => handleExport('obj')}
+                    className="flex-1 px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs transition-colors flex items-center justify-center space-x-1"
+                  >
                     <Download className="w-3 h-3" />
                     <span>.OBJ</span>
                   </button>
-                  <button className="flex-1 px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-xs transition-colors flex items-center justify-center space-x-1">
+                  <button 
+                    onClick={() => handleExport('glb')}
+                    className="flex-1 px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-xs transition-colors flex items-center justify-center space-x-1"
+                  >
                     <Download className="w-3 h-3" />
                     <span>.GLB</span>
                   </button>
@@ -786,10 +821,6 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                   >
                     <Play className="w-4 h-4" />
                     <span>Run Full Pipeline</span>
-                  </button>
-                  <button className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors flex items-center justify-center space-x-2">
-                    <Upload className="w-4 h-4" />
-                    <span>Upload to S3</span>
                   </button>
                   <button className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors">
                     Generate Report
