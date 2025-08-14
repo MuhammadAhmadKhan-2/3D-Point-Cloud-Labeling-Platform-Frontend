@@ -2,10 +2,11 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3 } from "lucide-react"
+import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3, Play } from "lucide-react"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
 import { serialDataService } from "../services/serialDataService"
+import StageSimulation from "./simulations/StageSimulation"
 
 interface StageInterfaceProps {
   stage: Stage
@@ -20,6 +21,7 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
   const [viewMode, setViewMode] = useState<"single-original" | "single-kr" | "split" | "overlay">("single-original")
   const [availableFrames, setAvailableFrames] = useState<number[]>([])
   const [frameLoading, setFrameLoading] = useState(false)
+  const [isStageSimulationOpen, setIsStageSimulationOpen] = useState(false)
 
   // Generate frame data for UI display
   const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
@@ -73,6 +75,8 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
     },
     {} as Record<string, SerialData[]>,
   )
+
+  // Function is now properly implemented with the useState hook above
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -211,38 +215,19 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
             </div>
 
             {/* Rest of the existing sidebar content... */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-blue-400 mb-3">Processing Functions</h3>
+           <div className="mb-6">
+              <h3 className="text-lg font-semibold text-blue-400 mb-3">Stage Functions</h3>
               <div className="space-y-2">
-                {stage.functionalities.map((func, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedFunction(index)}
-                    className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
-                      selectedFunction === index
-                        ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                        : "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        {func.includes("3D") ? (
-                          <Database className="w-4 h-4" />
-                        ) : func.includes("Quality") ? (
-                          <CheckCircle className="w-4 h-4" />
-                        ) : func.includes("Precision") ? (
-                          <Activity className="w-4 h-4" />
-                        ) : (
-                          <Settings className="w-4 h-4" />
-                        )}
-                        <span className="text-sm font-medium">{func}</span>
-                      </div>
-                      {selectedFunction === index && (
-                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                      )}
-                    </div>
-                  </button>
-                ))}
+           
+                
+                {/* Advanced Stage Simulation Button */}
+                <button
+                  onClick={() => setIsStageSimulationOpen(true)}
+                  className="w-full flex items-center justify-between p-2 rounded-lg transition-all duration-200 text-sm bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <span>Advanced Stage Simulation</span>
+                  <Play className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -527,6 +512,9 @@ export const StageInterface: React.FC<StageInterfaceProps> = ({ stage, serialDat
           </div>
         </div>
       )}
+      
+      {/* Stage Simulation Modal */}
+      <StageSimulation isOpen={isStageSimulationOpen} onClose={() => setIsStageSimulationOpen(false)} />
     </div>
   )
 }

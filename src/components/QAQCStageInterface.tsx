@@ -7,6 +7,7 @@ import { ProcessingSimulationModal } from "./ProcessingSimulationModal"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
 import { serialDataService } from "../services/serialDataService"
+import StageSimulation from "./simulations/StageSimulation"
 
 interface StageInterfaceProps {
   stage: Stage
@@ -33,6 +34,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false)
   const [simulationProcessName, setSimulationProcessName] = useState('')
   const [simulationDuration, setSimulationDuration] = useState(5000)
+  const [isStageSimulationOpen, setIsStageSimulationOpen] = useState(false)
 
   const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
 
@@ -458,19 +460,16 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-blue-400 mb-3">Stage Functions</h3>
               <div className="space-y-2">
-                {stage.functionalities.map((func, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedFunction(index)}
-                    className={`w-full text-left p-2 rounded-lg transition-all duration-200 text-sm ${
-                      selectedFunction === index
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                    }`}
-                  >
-                    {func}
-                  </button>
-                ))}
+           
+                
+                {/* Advanced Stage Simulation Button */}
+                <button
+                  onClick={() => setIsStageSimulationOpen(true)}
+                  className="w-full flex items-center justify-between p-2 rounded-lg transition-all duration-200 text-sm bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <span>Advanced Stage Simulation</span>
+                  <Play className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -621,10 +620,6 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                         <span className="text-gray-400">Stage:</span>
                         <span className="text-red-300">Preprocessing</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Path:</span>
-                        <span className="text-red-300 font-mono">/data/preprocessing/</span>
-                      </div>
                     </div>
                   </div>
 
@@ -638,10 +633,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                         <span className="text-gray-400">Stage:</span>
                         <span className="text-blue-300">Refinement</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Path:</span>
-                        <span className="text-blue-300 font-mono">/data/refinement/</span>
-                      </div>
+
                     </div>
                   </div>
                 </div>
@@ -807,6 +799,8 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                   </button>
                 </div>
               </div>
+              
+              <StageSimulation isOpen={isStageSimulationOpen} onClose={() => setIsStageSimulationOpen(false)} />
             </div>
           </div>
         </div>
