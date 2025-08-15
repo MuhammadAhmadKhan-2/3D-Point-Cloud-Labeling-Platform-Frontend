@@ -75,6 +75,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       setSimulationProcessName('Noise Removal')
       setSimulationDuration(5000)
       setIsSimulationModalOpen(true)
+    } else {
+      setActiveProcessing(null)
+      setProcessingProgress(0)
     }
   }
 
@@ -85,6 +88,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       setSimulationProcessName('Surface Smoothing')
       setSimulationDuration(6000)
       setIsSimulationModalOpen(true)
+    } else {
+      setActiveProcessing(null)
+      setProcessingProgress(0)
     }
   }
 
@@ -95,6 +101,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       setSimulationProcessName('Density Enhancement')
       setSimulationDuration(7000)
       setIsSimulationModalOpen(true)
+    } else {
+      setActiveProcessing(null)
+      setProcessingProgress(0)
     }
   }
 
@@ -105,6 +114,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       setSimulationProcessName('Surface Reconstruction')
       setSimulationDuration(9000)
       setIsSimulationModalOpen(true)
+    } else {
+      setActiveProcessing(null)
+      setProcessingProgress(0)
     }
   }
 
@@ -141,6 +153,9 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       setSimulationProcessName('Batch Processing')
       setSimulationDuration(10000)
       setIsSimulationModalOpen(true)
+    } else {
+      setActiveProcessing(null)
+      setProcessingProgress(0)
     }
   }
 
@@ -232,7 +247,17 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
         {/* Processing Simulation Modal */}
         <ProcessingSimulationModal
           isOpen={isSimulationModalOpen}
-          onClose={() => setIsSimulationModalOpen(false)}
+          onClose={() => {
+            setIsSimulationModalOpen(false);
+            setActiveProcessing(null);
+            setProcessingProgress(0);
+            // Reset the active processing states based on which process was active
+            if (simulationProcessName === 'Noise Removal') setIsNoiseRemovalActive(false);
+            if (simulationProcessName === 'Surface Smoothing') setIsSurfaceSmoothingActive(false);
+            if (simulationProcessName === 'Density Enhancement') setIsDensityEnhancementActive(false);
+            if (simulationProcessName === 'Surface Reconstruction') setIsSurfaceReconstructionActive(false);
+            if (simulationProcessName === 'Batch Processing') setIsBatchProcessingActive(false);
+          }}
           processName={simulationProcessName}
           duration={simulationDuration}
         />
