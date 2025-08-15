@@ -6,6 +6,7 @@ interface ProcessingSimulationModalProps {
   onClose: () => void;
   processName: string;
   duration?: number;
+  isRerun?: boolean;
 }
 
 interface LogLine {
@@ -112,6 +113,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
   onClose,
   processName,
   duration = 5000,
+  isRerun = false,
 }) => {
   const [progress, setProgress] = useState(0);
   const [visibleLogs, setVisibleLogs] = useState<LogLine[]>([]);
@@ -130,6 +132,9 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
     }
 
     const startTime = Date.now();
+    // Speed up the animation if this is a rerun
+    const speedMultiplier = isRerun ? 3 : 1; // 3x faster for reruns
+    const adjustedDuration = duration / speedMultiplier;
 
     // Progress bar animation
     const progressInterval = setInterval(() => {
@@ -138,7 +143,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
           clearInterval(progressInterval);
           return 100;
         }
-        return prev + (100 / (duration / 100));
+        return prev + (100 / (adjustedDuration / 100));
       });
     }, 100);
 
@@ -147,25 +152,30 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
       const elapsed = Date.now() - startTime;
       
       // Check if we should show the next log
-      if (currentLogIndex < allLogs.length && elapsed >= allLogs[currentLogIndex].delay) {
-        const newLog = allLogs[currentLogIndex];
-        setVisibleLogs((prev) => [...prev, newLog]);
-        setCurrentLogIndex((prev) => prev + 1);
+      if (currentLogIndex < allLogs.length) {
+        // Adjust the delay based on whether this is a rerun
+        const adjustedDelay = allLogs[currentLogIndex].delay / speedMultiplier;
         
-        // Auto-scroll to bottom
-        if (logsRef.current) {
-          setTimeout(() => {
-            if (logsRef.current) {
-              logsRef.current.scrollTop = logsRef.current.scrollHeight;
-            }
-          }, 50);
-        }
+        if (elapsed >= adjustedDelay) {
+          const newLog = allLogs[currentLogIndex];
+          setVisibleLogs((prev) => [...prev, newLog]);
+          setCurrentLogIndex((prev) => prev + 1);
+          
+          // Auto-scroll to bottom
+          if (logsRef.current) {
+            setTimeout(() => {
+              if (logsRef.current) {
+                logsRef.current.scrollTop = logsRef.current.scrollHeight;
+              }
+            }, 50);
+          }
 
-        // Check if this is the last log
-        if (currentLogIndex === allLogs.length - 1) {
-          setTimeout(() => {
-            setIsComplete(true);
-          }, 1000);
+          // Check if this is the last log
+          if (currentLogIndex === allLogs.length - 1) {
+            setTimeout(() => {
+              setIsComplete(true);
+            }, isRerun ? 300 : 1000); // Shorter completion time for reruns
+          }
         }
       }
 
@@ -179,7 +189,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
       clearInterval(progressInterval);
       clearInterval(logInterval);
     };
-  }, [isOpen, duration, allLogs, currentLogIndex]);
+  }, [isOpen, duration, allLogs, currentLogIndex, isRerun]);
 
   if (!isOpen) return null;
 

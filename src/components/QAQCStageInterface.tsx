@@ -30,10 +30,14 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [processingProgress, setProcessingProgress] = useState(0)
   const [activeProcessing, setActiveProcessing] = useState<string | null>(null)
   
+  // Track which processes have been completed
+  const [completedProcesses, setCompletedProcesses] = useState<Record<string, boolean>>({})
+  
   // Simulation modal states
   const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false)
   const [simulationProcessName, setSimulationProcessName] = useState('')
   const [simulationDuration, setSimulationDuration] = useState(5000)
+  const [isRerun, setIsRerun] = useState(false)
   const [isStageSimulationOpen, setIsStageSimulationOpen] = useState(false)
 
   const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
@@ -74,7 +78,18 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       simulateProcessing('Noise Removal')
       setSimulationProcessName('Noise Removal')
       setSimulationDuration(5000)
+      
+      // Check if this process has been completed before
+      const processKey = 'Noise Removal'
+      const hasCompletedBefore = completedProcesses[processKey] || false
+      setIsRerun(hasCompletedBefore)
       setIsSimulationModalOpen(true)
+      
+      // Mark this process as completed after it runs
+      setCompletedProcesses(prev => ({
+        ...prev,
+        [processKey]: true
+      }))
     } else {
       setActiveProcessing(null)
       setProcessingProgress(0)
@@ -87,7 +102,18 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       simulateProcessing('Surface Smoothing')
       setSimulationProcessName('Surface Smoothing')
       setSimulationDuration(6000)
+      
+      // Check if this process has been completed before
+      const processKey = 'Surface Smoothing'
+      const hasCompletedBefore = completedProcesses[processKey] || false
+      setIsRerun(hasCompletedBefore)
       setIsSimulationModalOpen(true)
+      
+      // Mark this process as completed after it runs
+      setCompletedProcesses(prev => ({
+        ...prev,
+        [processKey]: true
+      }))
     } else {
       setActiveProcessing(null)
       setProcessingProgress(0)
@@ -100,7 +126,18 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       simulateProcessing('Density Enhancement')
       setSimulationProcessName('Density Enhancement')
       setSimulationDuration(7000)
+      
+      // Check if this process has been completed before
+      const processKey = 'Density Enhancement'
+      const hasCompletedBefore = completedProcesses[processKey] || false
+      setIsRerun(hasCompletedBefore)
       setIsSimulationModalOpen(true)
+      
+      // Mark this process as completed after it runs
+      setCompletedProcesses(prev => ({
+        ...prev,
+        [processKey]: true
+      }))
     } else {
       setActiveProcessing(null)
       setProcessingProgress(0)
@@ -113,7 +150,18 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       simulateProcessing('Surface Reconstruction', 5000)
       setSimulationProcessName('Surface Reconstruction')
       setSimulationDuration(9000)
+      
+      // Check if this process has been completed before
+      const processKey = 'Surface Reconstruction'
+      const hasCompletedBefore = completedProcesses[processKey] || false
+      setIsRerun(hasCompletedBefore)
       setIsSimulationModalOpen(true)
+      
+      // Mark this process as completed after it runs
+      setCompletedProcesses(prev => ({
+        ...prev,
+        [processKey]: true
+      }))
     } else {
       setActiveProcessing(null)
       setProcessingProgress(0)
@@ -152,7 +200,18 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
       simulateProcessing('Batch Processing', 8000)
       setSimulationProcessName('Batch Processing')
       setSimulationDuration(10000)
+      
+      // Check if this process has been completed before
+      const processKey = 'Batch Processing'
+      const hasCompletedBefore = completedProcesses[processKey] || false
+      setIsRerun(hasCompletedBefore)
       setIsSimulationModalOpen(true)
+      
+      // Mark this process as completed after it runs
+      setCompletedProcesses(prev => ({
+        ...prev,
+        [processKey]: true
+      }))
     } else {
       setActiveProcessing(null)
       setProcessingProgress(0)
@@ -257,9 +316,11 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
             if (simulationProcessName === 'Density Enhancement') setIsDensityEnhancementActive(false);
             if (simulationProcessName === 'Surface Reconstruction') setIsSurfaceReconstructionActive(false);
             if (simulationProcessName === 'Batch Processing') setIsBatchProcessingActive(false);
+            setIsRerun(false); // Reset the rerun state
           }}
           processName={simulationProcessName}
           duration={simulationDuration}
+          isRerun={isRerun}
         />
       </div>
       {/* Main content remains unchanged for now */}
