@@ -4,6 +4,7 @@ import { X, Loader2 } from 'lucide-react';
 interface ProcessingSimulationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCancel?: () => void; // New prop for cancellation
   processName: string;
   duration?: number;
   isRerun?: boolean;
@@ -111,6 +112,7 @@ const getProcessingLogs = (processName: string): LogLine[] => {
 export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps> = ({
   isOpen,
   onClose,
+  onCancel,
   processName,
   duration = 5000,
   isRerun = false,
@@ -204,7 +206,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
             <h3 className="text-lg font-medium text-white">{processName}</h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={onCancel || onClose}
             className="text-gray-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
@@ -256,11 +258,12 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
         <div className="p-4 border-t border-gray-700 flex justify-end">
           <button
             onClick={onClose}
+            disabled={!isComplete}
             className={`px-4 py-2 rounded text-sm font-medium transition-colors ${isComplete
               ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-red-600 hover:bg-red-700 text-white'}`}
+              : 'bg-blue-600 hover:bg-blue-700 text-white opacity-50 cursor-not-allowed'}`}
           >
-            {isComplete ? 'Close' : 'Cancel'}
+            Close
           </button>
         </div>
       </div>

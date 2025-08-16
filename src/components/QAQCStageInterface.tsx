@@ -308,6 +308,10 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
           isOpen={isSimulationModalOpen}
           onClose={() => {
             setIsSimulationModalOpen(false);
+            // Don't reset processing states when just closing
+          }}
+          onCancel={() => {
+            setIsSimulationModalOpen(false);
             setActiveProcessing(null);
             setProcessingProgress(0);
             // Reset the active processing states based on which process was active
