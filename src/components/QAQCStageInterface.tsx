@@ -180,18 +180,40 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
     setSimulationDuration(3000)
     setIsSimulationModalOpen(true)
     
-    // In a real implementation, this would call an API endpoint to generate and upload the file to S3
-    setTimeout(() => {
-      const fileName = `${selectedSerial.serialNumber}_frame${currentFrame}.${format}`
-      const bucketPath = `s3://metabread-point-cloud-data/${selectedSerial.serialNumber}/exports/`
-      
-      // Show success message
-      const successMessage = `File ${fileName} successfully added to S3 bucket at ${bucketPath}`
-      console.log(successMessage)
-      
-      // Display a confirmation message to the user
-      alert(`Successfully exported ${format.toUpperCase()} file to S3 bucket!\n\nFile: ${fileName}\nLocation: ${bucketPath}`)
-    }, 3500) // Wait for the simulation to complete before showing confirmation
+    // Create a function to download the file
+    const downloadFile = () => {
+      try {
+        // Create the file name based on serial number and frame
+        const fileName = `${selectedSerial.serialNumber}_frame${currentFrame}.${format}`
+        
+        // Create a blob URL for the file (in a real app, this would be actual converted data)
+        // For this simulation, we'll create a simple text blob to demonstrate the download
+        const content = `This is a simulated ${format.toUpperCase()} file converted from PCD data for ${selectedSerial.serialNumber}, frame ${currentFrame}`
+        const blob = new Blob([content], { type: 'application/octet-stream' })
+        const url = URL.createObjectURL(blob)
+        
+        // Create a temporary anchor element to trigger the download
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }, 100)
+        
+        console.log(`Downloaded ${fileName} successfully`)
+      } catch (error) {
+        console.error('Error downloading file:', error)
+        alert(`Error downloading file: ${error.message}`)
+      }
+    }
+    
+    // Wait for the simulation to complete before downloading
+    setTimeout(downloadFile, 3500)
   }
 
   const handleBatchProcessing = () => {
@@ -552,33 +574,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                 </div>
               </div>
 
-              {/* Export Options */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-gray-700 to-gray-800 rounded-lg border border-gray-600">
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">Export Options</h4>
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={() => handleExport('ply')}
-                    className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>.PLY</span>
-                  </button>
-                  <button 
-                    onClick={() => handleExport('obj')}
-                    className="flex-1 px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>.OBJ</span>
-                  </button>
-                  <button 
-                    onClick={() => handleExport('glb')}
-                    className="flex-1 px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-xs transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    <span>.GLB</span>
-                  </button>
-                </div>
-              </div>
+             
             </div>
 
             {/* Original Processing Functions - Simplified */}
@@ -915,7 +911,26 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                   <button className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors">
                     Generate Report
                   </button>
-                  <button className="w-full px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm transition-colors">
+                  <button 
+                    onClick={() => {
+                      // Reset all processing states
+                      setIsNoiseRemovalActive(false);
+                      setIsSurfaceSmoothingActive(false);
+                      setIsDensityEnhancementActive(false);
+                      setIsSurfaceReconstructionActive(false);
+                      setIsBatchProcessingActive(false);
+                      
+                      // Reset active processing and progress
+                      setActiveProcessing(null);
+                      setProcessingProgress(0);
+                      
+                      // Close simulation modal if open
+                      if (isSimulationModalOpen) {
+                        setIsSimulationModalOpen(false);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm transition-colors"
+                  >
                     Reset Pipeline
                   </button>
                 </div>
