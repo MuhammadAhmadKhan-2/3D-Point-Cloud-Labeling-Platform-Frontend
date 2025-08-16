@@ -322,6 +322,56 @@ const SerialManager: React.FC = () => {
                 {newSerial.frames.map((_, idx) => (
                   <details key={idx} className="bg-gray-900/60 rounded-lg p-3">
                     <summary className="cursor-pointer text-gray-200 mb-2">Frame {idx + 1}</summary>
+                    <div className="grid grid-cols-1 gap-3 mb-3">
+                      <div>
+                        <label className="block text-sm text-gray-300 mb-1">Upload Folder (All 6 Images)</label>
+                        <input
+                          type="file"
+                          webkitdirectory=""
+                          directory=""
+                          multiple
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length === 0) return;
+                            
+                            // Create a map for the expected image names
+                            const imageMap: Record<string, File> = {};
+                            
+                            // Process each file in the folder
+                            files.forEach(file => {
+                              // Extract filename without extension
+                              const fileName = file.name.split('.')[0].toLowerCase();
+                              
+                              // Map the filename to our expected format
+                              if (fileName === 'front') imageMap['front'] = file;
+                              else if (fileName === 'back') imageMap['back'] = file;
+                              else if (fileName === 'front_left') imageMap['front-left'] = file;
+                              else if (fileName === 'front_right') imageMap['front-right'] = file;
+                              else if (fileName === 'back_left') imageMap['back-left'] = file;
+                              else if (fileName === 'back_right') imageMap['back-right'] = file;
+                            });
+                            
+                            // Update the frame with the mapped files
+                            setNewSerial((prev) => {
+                              const framesCopy = [...prev.frames];
+                              framesCopy[idx] = { 
+                                ...framesCopy[idx],
+                                'front': imageMap['front'],
+                                'back': imageMap['back'],
+                                'front-left': imageMap['front-left'],
+                                'front-right': imageMap['front-right'],
+                                'back-left': imageMap['back-left'],
+                                'back-right': imageMap['back-right']
+                              } as FrameImages;
+                              return { ...prev, frames: framesCopy };
+                            });
+                          }}
+                          className="cursor-pointer file:bg-blue-600 file:hover:bg-blue-700 file:text-white file:rounded file:px-2 file:py-1 file:border-0 bg-gray-800 border border-gray-700 rounded-lg text-white w-full"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Select a folder containing images named: front, back, front_left, front_right, back_left, back_right</p>
+                      </div>
+                    </div>
+                    
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
                       {['front', 'back', 'front-left', 'front-right', 'back-left', 'back-right'].map((view) => (
                         <div key={view}>
