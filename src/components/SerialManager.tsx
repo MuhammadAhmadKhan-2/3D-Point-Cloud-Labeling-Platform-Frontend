@@ -221,7 +221,6 @@ const SerialManager: React.FC = () => {
         </button>
       </h2>
 
-
       {/* Serial List */}
       {serials.length === 0 ? (
         <p className="text-gray-400">No serials added yet.</p>

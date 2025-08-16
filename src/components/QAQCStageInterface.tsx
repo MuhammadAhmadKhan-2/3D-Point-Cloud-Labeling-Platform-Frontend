@@ -2,12 +2,13 @@
 
 import type React from "react"
 import { useState } from "react"
-import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3, Filter, Zap, TrendingUp, Layers, Play, Download, FolderOpen, Upload } from "lucide-react"
+import { ChevronDown, Eye, Settings, Database, CheckCircle, Cloud, Cpu, Activity, BarChart3, Filter, Zap, TrendingUp, Layers, Play, Download, FolderOpen, Upload, FileText } from "lucide-react"
 import { ProcessingSimulationModal } from "./ProcessingSimulationModal"
 import type { Stage, SerialData } from "../types"
 import { DualCompanyViewer } from "./DualCompanyViewer"
 import { serialDataService } from "../services/serialDataService"
 import StageSimulation from "./simulations/StageSimulation"
+import ReportModal from "./ReportModal"
 
 interface StageInterfaceProps {
   stage: Stage
@@ -39,6 +40,8 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
   const [simulationDuration, setSimulationDuration] = useState(5000)
   const [isRerun, setIsRerun] = useState(false)
   const [isStageSimulationOpen, setIsStageSimulationOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [reportFormat, setReportFormat] = useState<'pdf' | 'docx'>('pdf')
 
   const frameData = selectedSerial ? serialDataService.generateFrameData(selectedSerial.serialNumber) : []
 
@@ -908,8 +911,20 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                     <Play className="w-4 h-4" />
                     <span>Run Full Pipeline</span>
                   </button>
-                  <button className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors">
-                    Generate Report
+                  <button 
+                    onClick={() => {
+                      if (!selectedSerial) {
+                        alert('Please select a serial number first');
+                        return;
+                      }
+                      // We'll keep the format state for future implementation
+                      setReportFormat('pdf');
+                      setIsReportModalOpen(true);
+                    }}
+                    className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Generate PDF Report</span>
                   </button>
                   <button 
                     onClick={() => {
@@ -937,6 +952,14 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
               </div>
               
               <StageSimulation isOpen={isStageSimulationOpen} onClose={() => setIsStageSimulationOpen(false)} />
+              
+              {/* Report Modal */}
+              <ReportModal 
+                isOpen={isReportModalOpen} 
+                onClose={() => setIsReportModalOpen(false)} 
+                serialData={selectedSerial} 
+                format={reportFormat}
+              />
             </div>
           </div>
         </div>
