@@ -83,18 +83,113 @@ const SerialManager: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('serialNumber', newSerial.serialNumber);
-      if (newSerial.pcdFileA) formData.append('pcdFileA', newSerial.pcdFileA);
-      if (newSerial.pcdFileB) formData.append('pcdFileB', newSerial.pcdFileB);
+      
+      // Function to check file size and show warning if too large
+      const checkFileSize = (file: File): boolean => {
+        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB max recommended size
+        if (file.size > MAX_FILE_SIZE) {
+          console.warn(`File ${file.name} is ${(file.size / (1024 * 1024)).toFixed(2)}MB, which may be too large for upload`);
+          return false;
+        }
+        return true;
+      };
+      
+      // Add PCD files with size checking
+      if (newSerial.pcdFileA) {
+        checkFileSize(newSerial.pcdFileA);
+        formData.append('pcdFileA', newSerial.pcdFileA);
+      }
+      if (newSerial.pcdFileB) {
+        checkFileSize(newSerial.pcdFileB);
+        formData.append('pcdFileB', newSerial.pcdFileB);
+      }
       // Append frame images with corrected field names
       const imageTypes = ['front', 'back', 'front_left', 'front_right', 'back_left', 'back_right'] as const;
-      newSerial.frames.forEach((frame, idx) => {
-        imageTypes.forEach((type) => {
+      
+      // Function to compress image before uploading
+      const compressImage = async (file: File): Promise<File> => {
+        return new Promise((resolve, reject) => {
+          // Skip compression for non-image files or small files (< 1MB)
+          if (!file.type.startsWith('image/') || file.size < 1024 * 1024) {
+            return resolve(file);
+          }
+          
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+              // Create canvas for compression
+              const canvas = document.createElement('canvas');
+              // Max dimensions - reduce if image is large
+              const MAX_WIDTH = 1280;
+              const MAX_HEIGHT = 1280;
+              
+              let width = img.width;
+              let height = img.height;
+              
+              // Calculate new dimensions while maintaining aspect ratio
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              
+              // Draw image on canvas with new dimensions
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              
+              // Convert to blob with reduced quality
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob) {
+                    return reject(new Error('Canvas to Blob conversion failed'));
+                  }
+                  // Create new file from blob
+                  const newFile = new File([blob], file.name, {
+                    type: 'image/jpeg',
+                    lastModified: Date.now(),
+                  });
+                  console.log(`Compressed ${file.name} from ${file.size} to ${newFile.size} bytes`);
+                  resolve(newFile);
+                },
+                'image/jpeg',
+                0.7 // Quality setting (0.7 = 70% quality)
+              );
+            };
+            img.onerror = () => reject(new Error('Image loading error'));
+          };
+          reader.onerror = () => reject(new Error('File reading error'));
+        });
+      };
+      
+      // Process each frame with compression
+      for (let idx = 0; idx < newSerial.frames.length; idx++) {
+        const frame = newSerial.frames[idx];
+        for (const type of imageTypes) {
           const file = frame[type.replace('_', '-') as keyof FrameImages] as File | undefined;
           if (file) {
-            formData.append(`frame_${idx}_${type}`, file);
+            try {
+              const compressedFile = await compressImage(file);
+              formData.append(`frame_${idx}_${type}`, compressedFile);
+            } catch (error) {
+              console.error(`Error compressing ${type} image:`, error);
+              // Fall back to original file if compression fails
+              formData.append(`frame_${idx}_${type}`, file);
+            }
           }
-        });
-      });
+        }
+      }
 
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
       const token = localStorage.getItem('token');
@@ -130,18 +225,26 @@ const SerialManager: React.FC = () => {
     } catch (err: any) {
       console.error('Upload error:', err);
       
-      // Provide more specific error messages
+      // Provide more specific error messages with troubleshooting tips
       if (err.code === 'ECONNABORTED') {
-        setError('Upload timeout. Please try again with fewer files or check your connection.');
+        setError('Upload timeout. Please try again with fewer files or check your connection. Consider reducing image quality or file sizes.');
       } else if (err.code === 'ERR_NETWORK') {
-        setError('Network error. Please check if the backend server is running and try again.');
+        setError('Network error. Please check if the backend server is running and try again. If on hosted environment, check your internet connection.');
       } else if (err.response?.status === 413) {
-        setError('Files too large. Please reduce file sizes and try again.');
+        setError('Files too large. The server rejected your upload due to file size limits. Please reduce file sizes and try again. Images are automatically compressed, but PCD files may need manual reduction.');
       } else if (err.response?.status === 400) {
-        setError(err.response?.data?.message || 'Invalid request. Please check your files and try again.');
+        setError(err.response?.data?.message || 'Invalid request. Please check your files and try again. Ensure all files are valid and properly formatted.');
       } else {
-        setError(err.response?.data?.message || 'Failed to create serial. Please try again.');
+        setError(err.response?.data?.message || 'Failed to create serial. Please try again with smaller files or fewer images.');
       }
+      
+      // Log detailed error information for debugging
+      console.error('Upload error details:', {
+        code: err.code,
+        status: err.response?.status,
+        message: err.response?.data?.message,
+        serverMessage: err.response?.data?.error
+      });
     } finally {
       setSaving(false);
     }
@@ -398,6 +501,8 @@ const SerialManager: React.FC = () => {
                   </details>
                 ))}
               </div>
+          
+              
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
