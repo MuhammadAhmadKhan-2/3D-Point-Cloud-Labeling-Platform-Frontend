@@ -84,23 +84,40 @@ const SerialManager: React.FC = () => {
       const formData = new FormData();
       formData.append('serialNumber', newSerial.serialNumber);
       
-      // Function to check file size and show warning if too large
+      // Function to check file size and enforce 2MB limit for PCD files
       const checkFileSize = (file: File): boolean => {
-        const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB max recommended size
+        const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB strict limit for hosted environment
         if (file.size > MAX_FILE_SIZE) {
-          console.warn(`File ${file.name} is ${(file.size / (1024 * 1024)).toFixed(2)}MB, which may be too large for upload`);
-          return false;
+          setError(`Error: ${file.name} is ${(file.size / (1024 * 1024)).toFixed(2)}MB. Files must be under 2MB for the hosted environment.`);
+          throw new Error(`File ${file.name} exceeds the 2MB size limit.`);
         }
         return true;
       };
       
-      // Add PCD files with size checking
+      // Check all files before uploading to fail early
+      // Check PCD files
       if (newSerial.pcdFileA) {
         checkFileSize(newSerial.pcdFileA);
-        formData.append('pcdFileA', newSerial.pcdFileA);
       }
       if (newSerial.pcdFileB) {
         checkFileSize(newSerial.pcdFileB);
+      }
+      
+      // Check all frame images
+      newSerial.frames.forEach((frame, idx) => {
+        ['front', 'back', 'front-left', 'front-right', 'back-left', 'back-right'].forEach(type => {
+          const file = frame[type as keyof FrameImages];
+          if (file) {
+            checkFileSize(file);
+          }
+        });
+      });
+      
+      // Add PCD files after size checking
+      if (newSerial.pcdFileA) {
+        formData.append('pcdFileA', newSerial.pcdFileA);
+      }
+      if (newSerial.pcdFileB) {
         formData.append('pcdFileB', newSerial.pcdFileB);
       }
       // Append frame images with corrected field names
@@ -212,6 +229,16 @@ const SerialManager: React.FC = () => {
             // You could add a progress bar here if needed
           }
         },
+      }).catch(err => {
+        // Provide more detailed error information
+        if (err.code === 'ECONNABORTED') {
+          throw new Error('Upload timeout. Please try with fewer or smaller files.');
+        } else if (err.response?.status === 413) {
+          throw new Error('Files too large. The server rejected your upload due to size limits.');
+        } else if (err.response?.status === 401) {
+          throw new Error('Authentication error. Please log in again.');
+        }
+        throw err; // Re-throw if not handled
       });
 
       console.log('Upload completed successfully');
@@ -226,12 +253,16 @@ const SerialManager: React.FC = () => {
       console.error('Upload error:', err);
       
       // Provide more specific error messages with troubleshooting tips
-      if (err.code === 'ECONNABORTED') {
+      if (err.message && err.message.includes('2MB size limit')) {
+        setError(`Files too large: ${err.message}. Please reduce file sizes before uploading.`);
+      } else if (err.code === 'ECONNABORTED') {
         setError('Upload timeout. Please try again with fewer files or check your connection. Consider reducing image quality or file sizes.');
       } else if (err.code === 'ERR_NETWORK') {
         setError('Network error. Please check if the backend server is running and try again. If on hosted environment, check your internet connection.');
       } else if (err.response?.status === 413) {
         setError('Files too large. The server rejected your upload due to file size limits. Please reduce file sizes and try again. Images are automatically compressed, but PCD files may need manual reduction.');
+      } else if (err.response?.status === 401) {
+        setError('Authentication error. Please log in again.');
       } else if (err.response?.status === 400) {
         setError(err.response?.data?.message || 'Invalid request. Please check your files and try again. Ensure all files are valid and properly formatted.');
       } else {
@@ -383,6 +414,8 @@ const SerialManager: React.FC = () => {
                   {error}
                 </div>
               )}
+              
+             
               <div>
                 <label className="block mb-1 text-gray-300">Serial Number</label>
                 <input
