@@ -425,7 +425,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
               </div>
               
               {/* Active Processing Indicator */}
-              {activeProcessing && (
+              {/* {activeProcessing && (
                 <div className="mb-4 p-3 bg-blue-600/20 border border-blue-500/30 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-blue-400 font-medium text-sm">{activeProcessing}</span>
@@ -438,7 +438,7 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
                     />
                   </div>
                 </div>
-              )}
+              )} */}
 
               <div className="space-y-3">
                 {/* 1. Noise Removal */}

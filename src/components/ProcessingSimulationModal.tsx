@@ -135,10 +135,29 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
 
     const startTime = Date.now();
     // Speed up the animation if this is a rerun
-    const speedMultiplier = isRerun ? 3 : 1; // 3x faster for reruns
+    const speedMultiplier = isRerun ? 20 : 1; // Much faster for reruns (20x instead of 3x)
     const adjustedDuration = duration / speedMultiplier;
 
-    // Progress bar animation
+    // For reruns, we can skip most of the animation and just show the final state
+    if (isRerun) {
+      // Show only the first and last log entries for reruns
+      if (allLogs.length > 0) {
+        setVisibleLogs([allLogs[0], allLogs[allLogs.length - 1]]);
+      }
+      
+      // Set progress to almost complete immediately
+      setProgress(100);
+      setCurrentLogIndex(allLogs.length);
+      
+      // Mark as complete after a very short delay
+      setTimeout(() => {
+        setIsComplete(true);
+      }, 300);
+      
+      return;
+    }
+
+    // Progress bar animation (only for first run)
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -148,8 +167,8 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
         return prev + (100 / (adjustedDuration / 100));
       });
     }, 100);
-
-    // Log animation with proper timing
+    
+    // Log animation with proper timing (only for first run)
     const logInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       
@@ -176,7 +195,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
           if (currentLogIndex === allLogs.length - 1) {
             setTimeout(() => {
               setIsComplete(true);
-            }, isRerun ? 300 : 1000); // Shorter completion time for reruns
+            }, 1000);
           }
         }
       }
