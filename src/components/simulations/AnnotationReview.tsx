@@ -8,10 +8,10 @@ interface AnnotationReviewProps {
 
 // Mock annotation data
 const mockAnnotations = [
-  { id: 1, type: "Vehicle", confidence: 0.92, position: { x: 25, y: 45 } },
-  { id: 2, type: "Pedestrian", confidence: 0.87, position: { x: 65, y: 30 } },
-  { id: 3, type: "Traffic Sign", confidence: 0.78, position: { x: 40, y: 70 } },
-  { id: 4, type: "Building", confidence: 0.95, position: { x: 80, y: 60 } },
+  { id: 1, type: "Vehicle", confidence: 0.92, position: { x: 25, y: 25 } },
+  { id: 2, type: "Pedestrian", confidence: 0.87, position: { x: 50, y: 20 } },
+  { id: 3, type: "Traffic Sign", confidence: 0.78, position: { x: 25, y: 55 } },
+  { id: 4, type: "Building", confidence: 0.95, position: { x: 50, y: 75 } },
 ]
 
 const AnnotationReview: React.FC<AnnotationReviewProps> = ({ navigateToNextStage }) => {
@@ -164,7 +164,6 @@ const AnnotationReview: React.FC<AnnotationReviewProps> = ({ navigateToNextStage
           <div className="p-3 bg-gray-800 border-t border-gray-600 flex space-x-2">
             <button 
               onClick={() => {
-                alert('Annotation approved successfully!');
                 // Here you would typically update state or make an API call
                 if (navigateToNextStage) navigateToNextStage();
               }}
