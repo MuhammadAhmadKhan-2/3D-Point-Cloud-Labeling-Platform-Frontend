@@ -971,13 +971,13 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
             </div>
             <h2 className="text-2xl font-semibold text-gray-400 mb-3">Select a Serial Number</h2>
             <p className="text-gray-500 mb-6">Choose a serial number to view dual company visualization</p>
-            <div className="text-sm text-gray-600">
+            {/* <div className="text-sm text-gray-600">
               <div className="flex items-center justify-center space-x-4">
                 <span>Original Source Factory Corporation & Metabread Co., Ltd.</span>
                 <span>•</span>
                 <span>Dual Company Mode</span>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       )}
