@@ -108,7 +108,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
       doc.setFontSize(10);
       doc.text('This report certifies that the point cloud data has been processed and', 20, 234);
       doc.text('verified according to industry standards and quality control procedures.', 20, 241);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 251);
+      // doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 251);
       
       // Save the PDF
       doc.save(fileName);
