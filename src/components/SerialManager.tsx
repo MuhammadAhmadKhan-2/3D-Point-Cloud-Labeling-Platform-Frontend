@@ -365,8 +365,6 @@ const SerialManager: React.FC = () => {
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="ml-3 text-gray-400">Loading serials...</p>
         </div>
-      ) : serials.length === 0 ? (
-        <p className="text-gray-400">No serials added yet.</p>
       ) : (
         <div className="overflow-x-auto bg-gray-900 rounded-lg ring-1 ring-gray-700/50">
           <table className="min-w-full text-sm text-left text-gray-300">
