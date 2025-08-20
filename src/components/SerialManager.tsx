@@ -360,7 +360,12 @@ const SerialManager: React.FC = () => {
       </h2>
 
       {/* Serial List */}
-      {serials.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="ml-3 text-gray-400">Loading serials...</p>
+        </div>
+      ) : serials.length === 0 ? (
         <p className="text-gray-400">No serials added yet.</p>
       ) : (
         <div className="overflow-x-auto bg-gray-900 rounded-lg ring-1 ring-gray-700/50">
