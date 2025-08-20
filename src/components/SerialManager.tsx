@@ -45,7 +45,8 @@ const SerialManager: React.FC = () => {
         setLoading(true);
         const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_BASE_URL}/serials`, {
+        // Use user-specific endpoint with high limit to support 1500+ serials
+        const res = await axios.get(`${API_BASE_URL}/serials/user?limit=2000`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const fetched: Serial[] = res.data.data.serials.map((s: any) => ({ ...s, id: s._id }));
@@ -324,10 +325,13 @@ const SerialManager: React.FC = () => {
       const res = await axios.get(`${API_BASE_URL}/serials`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      console.log('API Response:', res.data); // Add this to log the full response
+      console.log('Received Serials Count:', res.data.data.serials.length);
+      console.log('Total Serials in DB:', res.data.data.pagination.totalItems);
       const fetched: Serial[] = res.data.data.serials.map((s: any) => ({ ...s, id: s._id }));
       setSerials(fetched);
     } catch (err) {
-      console.error(err);
+      console.error('Fetch error:', err);
       // Don't set global error here as it's not related to user actions in the modal
     } finally {
       setLoading(false);
@@ -379,7 +383,7 @@ const SerialManager: React.FC = () => {
                     {serial.serialNumber}
                   </td>
 
-                  <td className="px-4 py-3 whitespace-nowrap">30</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{serial.frames.length}</td>
                   <td className="px-4 py-3 flex items-center gap-3">
                     <button
                       onClick={() => handleDelete(serial.id)}
