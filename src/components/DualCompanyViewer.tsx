@@ -5,9 +5,11 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react
 import * as THREE from "three"
 // @ts-ignore
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import { Maximize2, RotateCcw, Download, Eye, Split, Layers, Move } from "lucide-react"
+import { Maximize2, RotateCcw, Download, Eye, Split, Layers, Move, Tag, Trash2 } from "lucide-react"
 import { getDualCompanyAssets, getSerialAssets, loadDualCompanyPointClouds, type PointCloudData } from "../utils/dataLoader"
 import { getEncodedImageUrl } from "../utils/imageUrlUtils"
+import { useAnnotation, AnnotationType } from "../context/AnnotationContext"
+import { createBoundingBoxMesh, updateBoundingBoxMesh } from "../utils/annotationUtils"
 
 interface DualCompanyViewerProps {
   serialNumber: string
@@ -54,6 +56,30 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   const [rotationStep, setRotationStep] = useState(0)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [, forceUpdate] = useState(0)
+  
+  // Annotation state
+const [isAnnotating, setIsAnnotating] = useState(false)
+const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
+  
+  // Get annotation context
+  const { 
+  annotations,
+  addAnnotation, 
+  deleteAnnotation,
+  selectedAnnotation,
+  setSelectedAnnotation,
+  activeAnnotationType, 
+  setActiveAnnotationType,
+  setIsAnnotating: setContextIsAnnotating
+} = useAnnotation()
+  
+  // Drawing state
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [drawStartPoint, setDrawStartPoint] = useState<THREE.Vector3 | null>(null)
+  const [isDeleteMode, setIsDeleteMode] = useState(false)
+  const tempBoxRef = useRef<THREE.Mesh | null>(null)
+  const raycasterRef = useRef(new THREE.Raycaster())
+  const mouseRef = useRef(new THREE.Vector2())
 
   // Fullscreen handlers
   const getMainContainer = () => {
@@ -104,6 +130,102 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
       document.removeEventListener("webkitfullscreenchange", onFullscreenChange)
     }
   }, [viewMode])
+  
+  // Add event listeners for mouse events
+  useEffect(() => {
+  if (isAnnotating || isDeleteMode) {
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('click', handleClick);
+  } else {
+    window.removeEventListener('mousedown', handleMouseDown);
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    window.removeEventListener('click', handleClick);
+  }
+  
+  return () => {
+    window.removeEventListener('mousedown', handleMouseDown);
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    window.removeEventListener('click', handleClick);
+  };
+}, [isAnnotating, isDeleteMode, activeAnnotationType, viewMode, isDrawing, drawStartPoint]);
+  
+  // Effect to render annotations in the scene
+  useEffect(() => {
+    // Function to add annotations to a scene
+    const addAnnotationsToScene = (scene: THREE.Scene) => {
+      // Remove existing annotation meshes first to avoid duplicates
+      scene.children.forEach((child) => {
+        if (child.userData.isAnnotation) {
+          scene.remove(child);
+        }
+      });
+
+      // Add new meshes for each annotation
+      annotations.forEach((ann) => {
+        const mesh = createBoundingBoxMesh(ann.position, ann.dimensions, ann.rotation, ann.type);
+        mesh.userData.isAnnotation = true;
+        mesh.userData.annotationId = ann.id;
+        scene.add(mesh);
+      });
+    };
+
+    // Add to appropriate scenes based on viewMode
+    if (viewMode === 'split') {
+      if (leftSceneRef.current) addAnnotationsToScene(leftSceneRef.current);
+      if (rightSceneRef.current) addAnnotationsToScene(rightSceneRef.current);
+    } else {
+      if (singleSceneRef.current) addAnnotationsToScene(singleSceneRef.current);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      // Remove annotation meshes on cleanup
+      [singleSceneRef.current, leftSceneRef.current, rightSceneRef.current].forEach((scene) => {
+        if (scene) {
+          scene.children.forEach((child) => {
+            if (child.userData.isAnnotation) {
+              scene.remove(child);
+            }
+          });
+        }
+      });
+    };
+  }, [annotations, viewMode]);
+
+// Disable OrbitControls during annotation
+useEffect(() => {
+  const toggleControls = (controlsRef: React.RefObject<OrbitControls | null>, enabled: boolean) => {
+    if (controlsRef.current) {
+      controlsRef.current.enabled = enabled;
+    }
+  };
+
+  toggleControls(singleControlsRef, !isAnnotating);
+  toggleControls(leftControlsRef, !isAnnotating);
+  toggleControls(rightControlsRef, !isAnnotating);
+}, [isAnnotating]);
+
+// Change cursor when in annotating mode
+useEffect(() => {
+  const setCursor = (element: HTMLElement | null, cursor: string) => {
+    if (element) {
+      element.style.cursor = cursor;
+    }
+  };
+
+  const cursorStyle = isAnnotating ? 'crosshair' : 'auto';
+
+  // For single view
+  setCursor(singleRendererRef.current?.domElement || null, cursorStyle);
+
+  // For split view
+  setCursor(leftRendererRef.current?.domElement || null, cursorStyle);
+  setCursor(rightRendererRef.current?.domElement || null, cursorStyle);
+}, [isAnnotating]);
 
   // ROTATION HANDLER
   const handleRotate = useCallback(() => {
@@ -265,11 +387,12 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   }, [serialNumber, frameId, showPointCloud, viewMode])
 
   // Add refs to track OrbitControls for proper disposal
-const singleControlsRef = useRef<any>(null)
-const leftControlsRef = useRef<any>(null)
-const rightControlsRef = useRef<any>(null)
-
+const singleControlsRef = useRef<OrbitControls | null>(null)
+const leftControlsRef = useRef<OrbitControls | null>(null)
+const rightControlsRef = useRef<OrbitControls | null>(null)
 const singleCameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+const leftCameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+const rightCameraRef = useRef<THREE.PerspectiveCamera | null>(null)
 
 const cleanup = () => {
   if (animationRef.current) {
@@ -457,6 +580,7 @@ const cleanup = () => {
     )
     leftCamera.position.set(-15, 6, 15)
     leftCamera.lookAt(0, 0, 0)
+    leftCameraRef.current = leftCamera
 
     const leftRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     leftRenderer.setSize(leftMountRef.current.clientWidth, leftMountRef.current.clientHeight)
@@ -481,6 +605,7 @@ const cleanup = () => {
     )
     rightCamera.position.set(-15, 6, 15)
     rightCamera.lookAt(0, 0, 0)
+    rightCameraRef.current = rightCamera
 
     const rightRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     rightRenderer.setSize(rightMountRef.current.clientWidth, rightMountRef.current.clientHeight)
@@ -870,6 +995,242 @@ const cleanup = () => {
     }, 3500)
   }
 
+  // Handle annotation button click
+  const handleAnnotationButtonClick = () => {
+    // If we're not in annotation mode, enter it and show the menu
+    if (!isAnnotating) {
+      setIsAnnotating(true);
+      setShowAnnotationMenu(true);
+      setContextIsAnnotating(true);
+      setIsDeleteMode(false); // Reset delete mode when entering annotation mode
+    } 
+    // If we're in annotation mode and the menu is shown, hide the menu but stay in annotation mode
+    else if (showAnnotationMenu) {
+      setShowAnnotationMenu(false);
+    }
+    // If we're in annotation mode but the menu is hidden, show the menu
+    else {
+      setShowAnnotationMenu(true);
+    }
+  }
+
+  // Handle annotation type selection
+  const handleAnnotationTypeSelect = (type: AnnotationType) => {
+    console.log(`Selected annotation type: ${type}`)
+    setActiveAnnotationType(type)
+    setShowAnnotationMenu(false)  // Close the menu after selection
+    setIsAnnotating(true)        // Enable annotation drawing mode
+    setContextIsAnnotating(true) // Update context if needed
+  }
+  
+  // Mouse event handlers for drawing annotations
+  const handleMouseDown = (event: MouseEvent) => {
+    if (!isAnnotating || !activeAnnotationType) return;
+    
+    // Get the current renderer and camera based on view mode
+    let renderer: THREE.WebGLRenderer | null = null;
+    let camera: THREE.Camera | null = null;
+    let scene: THREE.Scene | null = null;
+    
+    if (viewMode === 'split') {
+      // Determine which side was clicked
+      const leftRect = leftRendererRef.current?.domElement.getBoundingClientRect();
+      const rightRect = rightRendererRef.current?.domElement.getBoundingClientRect();
+      
+      if (leftRect && event.clientX >= leftRect.left && event.clientX <= leftRect.right &&
+        event.clientY >= leftRect.top && event.clientY <= leftRect.bottom) {
+      renderer = leftRendererRef.current;
+      camera = leftCameraRef.current;
+      scene = leftSceneRef.current;
+    } else if (rightRect && event.clientX >= rightRect.left && event.clientX <= rightRect.right &&
+              event.clientY >= rightRect.top && event.clientY <= rightRect.bottom) {
+      renderer = rightRendererRef.current;
+      camera = rightCameraRef.current;
+      scene = rightSceneRef.current;
+    }
+    } else {
+      renderer = singleRendererRef.current;
+      camera = singleCameraRef.current;
+      scene = singleSceneRef.current;
+    }
+    
+    if (!renderer || !camera || !scene) return;
+    
+    // Calculate mouse position in normalized device coordinates
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Create a plane at y=0 to intersect with
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    
+    // Set up raycaster
+    raycasterRef.current.setFromCamera(mouseRef.current, camera);
+    
+    // Find intersection with the plane
+    const intersection = new THREE.Vector3();
+    if (raycasterRef.current.ray.intersectPlane(plane, intersection)) {
+      setIsDrawing(true);
+      setDrawStartPoint(intersection.clone());
+      
+      // Create a temporary box
+      const dimensions = new THREE.Vector3(0.1, 2.0, 0.1); // Default height of 2 meters
+      const rotation = new THREE.Euler(0, 0, 0);
+      const tempBox = createBoundingBoxMesh(intersection, dimensions, rotation, activeAnnotationType);
+      
+      scene.add(tempBox);
+      tempBoxRef.current = tempBox;
+    }
+  };
+  
+  const handleMouseMove = (event: MouseEvent) => {
+    if (!isDrawing || !drawStartPoint || !tempBoxRef.current || !activeAnnotationType) return;
+    
+    // Get the current renderer and camera based on view mode
+    let renderer: THREE.WebGLRenderer | null = null;
+    let camera: THREE.Camera | null = null;
+    
+    if (viewMode === 'split') {
+      // Determine which side was clicked initially
+      if (tempBoxRef.current.parent === leftSceneRef.current) {
+    renderer = leftRendererRef.current;
+    camera = leftCameraRef.current;
+  } else if (tempBoxRef.current.parent === rightSceneRef.current) {
+    renderer = rightRendererRef.current;
+    camera = rightCameraRef.current;
+  }
+    } else {
+      renderer = singleRendererRef.current;
+      camera = singleCameraRef.current;
+    }
+    
+    if (!renderer || !camera) return;
+    
+    // Calculate mouse position in normalized device coordinates
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Create a plane at y=0 to intersect with
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    
+    // Set up raycaster
+    raycasterRef.current.setFromCamera(mouseRef.current, camera);
+    
+    // Find intersection with the plane
+    const intersection = new THREE.Vector3();
+    if (raycasterRef.current.ray.intersectPlane(plane, intersection)) {
+      // Calculate dimensions based on start and current points
+      const width = Math.abs(intersection.x - drawStartPoint.x);
+      const depth = Math.abs(intersection.z - drawStartPoint.z);
+      const height = 2.0; // Fixed height
+      
+      // Calculate center position
+      const centerX = (intersection.x + drawStartPoint.x) / 2;
+      const centerZ = (intersection.z + drawStartPoint.z) / 2;
+      
+      // Update temporary box
+      const newPosition = new THREE.Vector3(centerX, height / 2, centerZ);
+      const newDimensions = new THREE.Vector3(width, height, depth);
+      
+      updateBoundingBoxMesh(
+        tempBoxRef.current,
+        newPosition,
+        newDimensions,
+        undefined,
+        activeAnnotationType
+      );
+    }
+  };
+  
+  const handleMouseUp = () => {
+    if (!isDrawing || !drawStartPoint || !tempBoxRef.current || !activeAnnotationType) return;
+    
+    // Get final dimensions and position from the temporary box
+    const finalPosition = tempBoxRef.current.position.clone();
+    const finalDimensions = new THREE.Vector3();
+    tempBoxRef.current.geometry.computeBoundingBox();
+    
+    if (tempBoxRef.current.geometry.boundingBox) {
+      const box = tempBoxRef.current.geometry.boundingBox;
+      finalDimensions.x = (box.max.x - box.min.x) * tempBoxRef.current.scale.x;
+      finalDimensions.y = (box.max.y - box.min.y) * tempBoxRef.current.scale.y;
+      finalDimensions.z = (box.max.z - box.min.z) * tempBoxRef.current.scale.z;
+    }
+    
+    // Remove temporary box
+    tempBoxRef.current.parent?.remove(tempBoxRef.current);
+    tempBoxRef.current = null;
+    
+    // Add the annotation to the context
+    addAnnotation({
+      type: activeAnnotationType,
+      position: finalPosition,
+      dimensions: finalDimensions,
+      rotation: new THREE.Euler(0, 0, 0)
+    });
+    
+    // Reset drawing state
+    setIsDrawing(false);
+    setDrawStartPoint(null);
+  };
+
+  const handleClick = (event: MouseEvent) => {
+  if (!isAnnotating && !isDeleteMode) return;
+
+  // If we're in drawing mode with an active type, don't handle selection/deletion
+  if (activeAnnotationType && !isDeleteMode) return;
+
+  // ... existing code for setting renderer, camera, scene ...
+
+  if (!renderer || !camera || !scene) return;
+
+  // ... existing raycasting code ...
+
+  if (intersects.length > 0) {
+    const clickedId = intersects[0].object.userData.annotationId;
+    
+    if (isDeleteMode) {
+      deleteAnnotation(clickedId);
+      console.log(`Deleted annotation: ${clickedId}`);
+    } else {
+      setSelectedAnnotation(clickedId);
+      setShowAnnotationMenu(true);
+      console.log(`Selected annotation: ${clickedId}`);
+    }
+  } else if (!isDeleteMode) {
+    setSelectedAnnotation(null);
+  }
+};
+
+  // Handle annotation cancel
+  const handleAnnotationCancel = () => {
+    setIsAnnotating(false)
+    setShowAnnotationMenu(false)
+    setSelectedAnnotation(null)
+  }
+
+  // Handle annotation delete
+const handleAnnotationDelete = () => {
+  if (selectedAnnotation) {
+    // Show confirmation dialog before deleting
+    if (window.confirm('Are you sure you want to delete this annotation?')) {
+      deleteAnnotation(selectedAnnotation);
+      setSelectedAnnotation(null);
+    }
+  }
+}
+
+const handleDeleteModeToggle = () => {
+  const newDeleteMode = !isDeleteMode;
+  setIsDeleteMode(newDeleteMode);
+  if (newDeleteMode) {
+    setIsAnnotating(false);
+    setActiveAnnotationType(null);
+    setShowAnnotationMenu(false);
+  }
+};
+
   const renderViewModeControls = () => (
     <div className="absolute top-4 right-4 flex flex-col space-y-2 z-50">
       <div className="flex space-x-2">
@@ -922,7 +1283,6 @@ const cleanup = () => {
         >
           <RotateCcw className="w-4 h-4 text-gray-300" />
         </button>
-        {/* Removed the Pan button since panning is already enabled by default with right-click or middle-click */}
         <button
           className="p-2 bg-black/80 hover:bg-black/90 rounded-lg border border-gray-700 transition-colors"
           onClick={handleDownload}
@@ -930,7 +1290,69 @@ const cleanup = () => {
         >
           <Download className="w-4 h-4 text-gray-300" />
         </button>
+        {/* Add Annotation Button */}
+        <button
+          className={`p-2 ${isAnnotating ? "bg-green-600 border-green-500" : "bg-black/80 border-gray-700"} hover:bg-black/90 rounded-lg border transition-colors`}
+          onClick={handleAnnotationButtonClick}
+          title="Toggle Annotation Mode"
+        >
+          <Tag className="w-4 h-4 text-gray-300" />
+        </button>
+        {/* Add Delete Mode Button */}
+        {/* <button
+          className={`p-2 ${isDeleteMode ? "bg-red-600 border-red-500" : "bg-black/80 border-gray-700"} hover:bg-black/90 rounded-lg border transition-colors`}
+          onClick={handleDeleteModeToggle}
+          title="Toggle Delete Mode"
+        >
+          <Trash2 className="w-4 h-4 text-gray-300" />
+        </button> */}
       </div>
+      {/* Annotation Menu */}
+      {showAnnotationMenu && (
+        <div className="mt-2 bg-black/90 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
+          <div className="text-sm font-medium text-white mb-2">Select Annotation Type</div>
+          <div className="space-y-2">
+            <button
+              onClick={() => handleAnnotationTypeSelect('car' as AnnotationType)}
+              className="w-full px-3 py-2 text-left text-sm flex items-center space-x-2 rounded bg-blue-900/50 hover:bg-blue-800/50 transition-colors"
+            >
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span>Car</span>
+            </button>
+            <button
+              onClick={() => handleAnnotationTypeSelect('pedestrian' as AnnotationType)}
+              className="w-full px-3 py-2 text-left text-sm flex items-center space-x-2 rounded bg-green-900/50 hover:bg-green-800/50 transition-colors"
+            >
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span>Pedestrian</span>
+            </button>
+            <button
+              onClick={() => handleAnnotationTypeSelect('object' as AnnotationType)}
+              className="w-full px-3 py-2 text-left text-sm flex items-center space-x-2 rounded bg-red-900/50 hover:bg-red-800/50 transition-colors"
+            >
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <span>Object</span>
+            </button>
+          </div>
+          <div className="mt-3 flex space-x-2">
+            <button
+              onClick={handleAnnotationCancel}
+              className="flex-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors"
+            >
+              Cancel
+            </button>
+            {selectedAnnotation && (
+              <button
+                onClick={handleAnnotationDelete}
+                className="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-xs transition-colors flex items-center space-x-1"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {downloadError && (
         <div className="text-xs text-red-400 mt-2 bg-black/80 px-2 py-1 rounded">{downloadError}</div>
       )}

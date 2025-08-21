@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { X, Loader2 } from 'lucide-react';
 
 interface ProcessingSimulationModalProps {
@@ -122,7 +122,8 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
   const [isComplete, setIsComplete] = useState(false);
   const [currentLogIndex, setCurrentLogIndex] = useState(0);
   const logsRef = useRef<HTMLDivElement>(null);
-  const allLogs = getProcessingLogs(processName);
+  // Memoize allLogs to prevent recreation on every render
+  const allLogs = useMemo(() => getProcessingLogs(processName), [processName]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -169,18 +170,20 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
     }, 100);
     
     // Log animation with proper timing (only for first run)
+    let logIndex = 0;
     const logInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       
       // Check if we should show the next log
-      if (currentLogIndex < allLogs.length) {
+      if (logIndex < allLogs.length) {
         // Adjust the delay based on whether this is a rerun
-        const adjustedDelay = allLogs[currentLogIndex].delay / speedMultiplier;
+        const adjustedDelay = allLogs[logIndex].delay / speedMultiplier;
         
         if (elapsed >= adjustedDelay) {
-          const newLog = allLogs[currentLogIndex];
+          const newLog = allLogs[logIndex];
           setVisibleLogs((prev) => [...prev, newLog]);
-          setCurrentLogIndex((prev) => prev + 1);
+          setCurrentLogIndex(logIndex + 1);
+          logIndex++;
           
           // Auto-scroll to bottom
           if (logsRef.current) {
@@ -192,7 +195,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
           }
 
           // Check if this is the last log
-          if (currentLogIndex === allLogs.length - 1) {
+          if (logIndex === allLogs.length) {
             setTimeout(() => {
               setIsComplete(true);
             }, 1000);
@@ -201,7 +204,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
       }
 
       // Clean up when all logs are shown
-      if (currentLogIndex >= allLogs.length) {
+      if (logIndex >= allLogs.length) {
         clearInterval(logInterval);
       }
     }, 50); // Check every 50ms for smooth timing
@@ -210,7 +213,7 @@ export const ProcessingSimulationModal: React.FC<ProcessingSimulationModalProps>
       clearInterval(progressInterval);
       clearInterval(logInterval);
     };
-  }, [isOpen, duration, allLogs, currentLogIndex, isRerun]);
+  }, [isOpen, duration, allLogs, isRerun, processName]); // Added processName since it's used in useMemo
 
   if (!isOpen) return null;
 

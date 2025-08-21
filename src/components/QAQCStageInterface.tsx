@@ -9,6 +9,7 @@ import { DualCompanyViewer } from "./DualCompanyViewer"
 import { serialDataService } from "../services/serialDataService"
 import StageSimulation from "./simulations/StageSimulation"
 import ReportModal from "./ReportModal"
+import { AnnotationProvider } from "../context/AnnotationContext";
 
 interface StageInterfaceProps {
   stage: Stage
@@ -684,13 +685,15 @@ export const QAQCStageInterface: React.FC<StageInterfaceProps> = ({ stage, seria
           {/* Enhanced Main Content with Dual Company Viewer */}
           <div className="flex-1 p-4 w-[50%]">
             <div className="h-full bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-              <DualCompanyViewer
-                serialNumber={displayedSerial.serialNumber}
-                frameId={currentFrame}
-                showPointCloud={showPointCloud}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-              />
+              <AnnotationProvider>
+                <DualCompanyViewer
+                  serialNumber={displayedSerial.serialNumber}
+                  frameId={currentFrame}
+                  showPointCloud={showPointCloud}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                />
+              </AnnotationProvider>
             </div>
           </div>
 
