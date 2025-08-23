@@ -60,11 +60,13 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   // Annotation state
 const [isAnnotating, setIsAnnotating] = useState(false)
 const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
+const [isMoveMode, setIsMoveMode] = useState(false)
   
   // Get annotation context
   const { 
   annotations,
   addAnnotation, 
+  updateAnnotation,
   deleteAnnotation,
   selectedAnnotation,
   setSelectedAnnotation,
@@ -80,6 +82,11 @@ const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
   const tempBoxRef = useRef<THREE.Mesh | null>(null)
   const raycasterRef = useRef(new THREE.Raycaster())
   const mouseRef = useRef(new THREE.Vector2())
+  
+  // Move mode state
+  const [isDragging, setIsDragging] = useState(false)
+  const [draggedAnnotation, setDraggedAnnotation] = useState<string | null>(null)
+  const [dragOffset, setDragOffset] = useState<THREE.Vector3 | null>(null)
 
   // Fullscreen handlers
   const getMainContainer = () => {
@@ -133,7 +140,7 @@ const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
   
   // Add event listeners for mouse events
   useEffect(() => {
-  if (isAnnotating || isDeleteMode) {
+  if (isAnnotating || isDeleteMode || isMoveMode) {
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -151,7 +158,7 @@ const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
     window.removeEventListener('mouseup', handleMouseUp);
     window.removeEventListener('click', handleClick);
   };
-}, [isAnnotating, isDeleteMode, activeAnnotationType, viewMode, isDrawing, drawStartPoint]);
+}, [isAnnotating, isDeleteMode, isMoveMode, activeAnnotationType, viewMode, isDrawing, drawStartPoint, isDragging, draggedAnnotation]);
   
   // Effect to render annotations in the scene
   useEffect(() => {
@@ -196,7 +203,7 @@ const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
     };
   }, [annotations, viewMode]);
 
-// Disable OrbitControls during annotation
+// Disable OrbitControls during annotation or move mode
 useEffect(() => {
   const toggleControls = (controlsRef: React.RefObject<OrbitControls | null>, enabled: boolean) => {
     if (controlsRef.current) {
@@ -204,12 +211,13 @@ useEffect(() => {
     }
   };
 
-  toggleControls(singleControlsRef, !isAnnotating);
-  toggleControls(leftControlsRef, !isAnnotating);
-  toggleControls(rightControlsRef, !isAnnotating);
-}, [isAnnotating]);
+  const shouldDisableControls = isAnnotating || isMoveMode || isDragging;
+  toggleControls(singleControlsRef, !shouldDisableControls);
+  toggleControls(leftControlsRef, !shouldDisableControls);
+  toggleControls(rightControlsRef, !shouldDisableControls);
+}, [isAnnotating, isMoveMode, isDragging]);
 
-// Change cursor when in annotating mode
+// Change cursor when in annotating or move mode
 useEffect(() => {
   const setCursor = (element: HTMLElement | null, cursor: string) => {
     if (element) {
@@ -217,7 +225,9 @@ useEffect(() => {
     }
   };
 
-  const cursorStyle = isAnnotating ? 'crosshair' : 'auto';
+  let cursorStyle = 'auto';
+  if (isAnnotating) cursorStyle = 'crosshair';
+  else if (isMoveMode) cursorStyle = isDragging ? 'grabbing' : 'grab';
 
   // For single view
   setCursor(singleRendererRef.current?.domElement || null, cursorStyle);
@@ -225,7 +235,7 @@ useEffect(() => {
   // For split view
   setCursor(leftRendererRef.current?.domElement || null, cursorStyle);
   setCursor(rightRendererRef.current?.domElement || null, cursorStyle);
-}, [isAnnotating]);
+}, [isAnnotating, isMoveMode, isDragging]);
 
   // ROTATION HANDLER
   const handleRotate = useCallback(() => {
@@ -1023,8 +1033,148 @@ const cleanup = () => {
     setContextIsAnnotating(true) // Update context if needed
   }
   
-  // Mouse event handlers for drawing annotations
+  // Helper function to get world position from mouse event
+  const getWorldPositionFromMouse = (event: MouseEvent): THREE.Vector3 | null => {
+    // Get the current renderer and camera based on view mode
+    let renderer: THREE.WebGLRenderer | null = null;
+    let camera: THREE.Camera | null = null;
+    
+    if (viewMode === 'split') {
+      // Determine which side was clicked
+      const leftRect = leftRendererRef.current?.domElement.getBoundingClientRect();
+      const rightRect = rightRendererRef.current?.domElement.getBoundingClientRect();
+      
+      if (leftRect && event.clientX >= leftRect.left && event.clientX <= leftRect.right &&
+        event.clientY >= leftRect.top && event.clientY <= leftRect.bottom) {
+        renderer = leftRendererRef.current;
+        camera = leftCameraRef.current;
+      } else if (rightRect && event.clientX >= rightRect.left && event.clientX <= rightRect.right &&
+                event.clientY >= rightRect.top && event.clientY <= rightRect.bottom) {
+        renderer = rightRendererRef.current;
+        camera = rightCameraRef.current;
+      }
+    } else {
+      renderer = singleRendererRef.current;
+      camera = singleCameraRef.current;
+    }
+    
+    if (!renderer || !camera) return null;
+    
+    // Calculate mouse position in normalized device coordinates
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Create a plane at y=0 to intersect with
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    
+    // Set up raycaster
+    raycasterRef.current.setFromCamera(mouseRef.current, camera);
+    
+    // Find intersection with the plane
+    const intersection = new THREE.Vector3();
+    if (raycasterRef.current.ray.intersectPlane(plane, intersection)) {
+      return intersection;
+    }
+    
+    return null;
+  };
+
+  // Helper function to get intersected annotation
+  const getIntersectedAnnotation = (event: MouseEvent): { annotationId: string } | null => {
+    // Get the current renderer and camera based on view mode
+    let renderer: THREE.WebGLRenderer | null = null;
+    let camera: THREE.Camera | null = null;
+    let scene: THREE.Scene | null = null;
+    
+    if (viewMode === 'split') {
+      // Determine which side was clicked
+      const leftRect = leftRendererRef.current?.domElement.getBoundingClientRect();
+      const rightRect = rightRendererRef.current?.domElement.getBoundingClientRect();
+      
+      if (leftRect && event.clientX >= leftRect.left && event.clientX <= leftRect.right &&
+        event.clientY >= leftRect.top && event.clientY <= leftRect.bottom) {
+        renderer = leftRendererRef.current;
+        camera = leftCameraRef.current;
+        scene = leftSceneRef.current;
+      } else if (rightRect && event.clientX >= rightRect.left && event.clientX <= rightRect.right &&
+                event.clientY >= rightRect.top && event.clientY <= rightRect.bottom) {
+        renderer = rightRendererRef.current;
+        camera = rightCameraRef.current;
+        scene = rightSceneRef.current;
+      }
+    } else {
+      renderer = singleRendererRef.current;
+      camera = singleCameraRef.current;
+      scene = singleSceneRef.current;
+    }
+    
+    if (!renderer || !camera || !scene) return null;
+    
+    // Calculate mouse position in normalized device coordinates
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Set up raycaster
+    raycasterRef.current.setFromCamera(mouseRef.current, camera);
+    
+    // Find intersections with annotation meshes
+    const annotationMeshes = scene.children.filter(child => child.userData.isAnnotation);
+    const intersects = raycasterRef.current.intersectObjects(annotationMeshes, true);
+    
+    if (intersects.length > 0) {
+      const intersectedObject = intersects[0].object;
+      // Find the parent mesh that has the annotation ID
+      let current = intersectedObject;
+      while (current && !current.userData.annotationId) {
+        current = current.parent as THREE.Object3D;
+      }
+      
+      if (current && current.userData.annotationId) {
+        return { annotationId: current.userData.annotationId };
+      }
+    }
+    
+    return null;
+  };
+
+  // Handle move mode toggle
+  const handleMoveModeToggle = () => {
+    const newMoveMode = !isMoveMode;
+    setIsMoveMode(newMoveMode);
+    if (newMoveMode) {
+      // When entering move mode, exit annotation and delete modes
+      setIsAnnotating(false);
+      setActiveAnnotationType(null);
+      setShowAnnotationMenu(false);
+      setIsDeleteMode(false);
+      setContextIsAnnotating(false);
+    }
+  };
+
+  // Mouse event handlers for drawing annotations and moving boxes
   const handleMouseDown = (event: MouseEvent) => {
+    // Handle move mode
+    if (isMoveMode && !isDragging) {
+      const intersectedAnnotation = getIntersectedAnnotation(event);
+      if (intersectedAnnotation) {
+        setIsDragging(true);
+        setDraggedAnnotation(intersectedAnnotation.annotationId);
+        
+        // Calculate offset between mouse position and annotation center
+        const worldPosition = getWorldPositionFromMouse(event);
+        if (worldPosition) {
+          const annotation = annotations.find(ann => ann.id === intersectedAnnotation.annotationId);
+          if (annotation) {
+            const offset = new THREE.Vector3().subVectors(annotation.position, worldPosition);
+            setDragOffset(offset);
+          }
+        }
+        return;
+      }
+    }
+    
     if (!isAnnotating || !activeAnnotationType) return;
     
     // Get the current renderer and camera based on view mode
@@ -1084,6 +1234,16 @@ const cleanup = () => {
   };
   
   const handleMouseMove = (event: MouseEvent) => {
+    // Handle dragging in move mode
+    if (isMoveMode && isDragging && draggedAnnotation && dragOffset) {
+      const worldPosition = getWorldPositionFromMouse(event);
+      if (worldPosition) {
+        const newPosition = new THREE.Vector3().addVectors(worldPosition, dragOffset);
+        updateAnnotation(draggedAnnotation, { position: newPosition });
+      }
+      return;
+    }
+    
     if (!isDrawing || !drawStartPoint || !tempBoxRef.current || !activeAnnotationType) return;
     
     // Get the current renderer and camera based on view mode
@@ -1144,6 +1304,14 @@ const cleanup = () => {
   };
   
   const handleMouseUp = () => {
+    // Handle end of dragging in move mode
+    if (isMoveMode && isDragging) {
+      setIsDragging(false);
+      setDraggedAnnotation(null);
+      setDragOffset(null);
+      return;
+    }
+    
     if (!isDrawing || !drawStartPoint || !tempBoxRef.current || !activeAnnotationType) return;
     
     // Get final dimensions and position from the temporary box
@@ -1297,6 +1465,14 @@ const handleDeleteModeToggle = () => {
           title="Toggle Annotation Mode"
         >
           <Tag className="w-4 h-4 text-gray-300" />
+        </button>
+        {/* Add Move Mode Button */}
+        <button
+          className={`p-2 ${isMoveMode ? "bg-blue-600 border-blue-500" : "bg-black/80 border-gray-700"} hover:bg-black/90 rounded-lg border transition-colors`}
+          onClick={handleMoveModeToggle}
+          title="Toggle Move Mode - Move annotation boxes"
+        >
+          <Move className="w-4 h-4 text-gray-300" />
         </button>
         {/* Add Delete Mode Button */}
         {/* <button
@@ -1673,4 +1849,3 @@ const renderInstructionsPanel = () => (
     </div>
   </div>
 )
-
