@@ -62,6 +62,8 @@ const [isAnnotating, setIsAnnotating] = useState(false)
 const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
 const [isMoveMode, setIsMoveMode] = useState(false)
 const [isResizeMode, setIsResizeMode] = useState(false)
+const [isDeleteMode, setIsDeleteMode] = useState(false)
+const [isRotateMode, setIsRotateMode] = useState(false)
   
   // Get annotation context
   const { 
@@ -79,7 +81,6 @@ const [isResizeMode, setIsResizeMode] = useState(false)
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false)
   const [drawStartPoint, setDrawStartPoint] = useState<THREE.Vector3 | null>(null)
-  const [isDeleteMode, setIsDeleteMode] = useState(false)
   const tempBoxRef = useRef<THREE.Mesh | null>(null)
   const raycasterRef = useRef(new THREE.Raycaster())
   const mouseRef = useRef(new THREE.Vector2())
@@ -95,6 +96,13 @@ const [isResizeMode, setIsResizeMode] = useState(false)
   const [resizeStartDistance, setResizeStartDistance] = useState<number | null>(null)
   const [originalDimensions, setOriginalDimensions] = useState<THREE.Vector3 | null>(null)
   const [annotationCenter, setAnnotationCenter] = useState<THREE.Vector3 | null>(null)
+  
+  // Rotation mode state
+  const [isRotating, setIsRotating] = useState(false)
+  const [rotatedAnnotation, setRotatedAnnotation] = useState<string | null>(null)
+  const [rotationStartAngle, setRotationStartAngle] = useState<number | null>(null)
+  const [originalRotation, setOriginalRotation] = useState<THREE.Euler | null>(null)
+  const [rotationCenter, setRotationCenter] = useState<THREE.Vector3 | null>(null)
 
   // Fullscreen handlers
   const getMainContainer = () => {
@@ -148,7 +156,7 @@ const [isResizeMode, setIsResizeMode] = useState(false)
   
   // Add event listeners for mouse events
   useEffect(() => {
-  if (isAnnotating || isDeleteMode || isMoveMode || isResizeMode) {
+  if (isAnnotating || isDeleteMode || isMoveMode || isResizeMode || isRotateMode) {
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -166,7 +174,7 @@ const [isResizeMode, setIsResizeMode] = useState(false)
     window.removeEventListener('mouseup', handleMouseUp);
     window.removeEventListener('click', handleClick);
   };
-}, [isAnnotating, isDeleteMode, isMoveMode, isResizeMode, activeAnnotationType, viewMode, isDrawing, drawStartPoint, isDragging, draggedAnnotation, isResizing, resizedAnnotation, resizeStartDistance, annotationCenter]);
+}, [isAnnotating, isDeleteMode, isMoveMode, isResizeMode, isRotateMode, activeAnnotationType, viewMode, isDrawing, drawStartPoint, isDragging, draggedAnnotation, isResizing, resizedAnnotation, isRotating, rotatedAnnotation, resizeStartDistance, annotationCenter, rotationStartAngle, rotationCenter]);
   
   // Effect to render annotations in the scene
   useEffect(() => {
@@ -219,32 +227,33 @@ useEffect(() => {
     }
   };
 
-  const shouldDisableControls = isAnnotating || isMoveMode || isResizeMode || isDragging || isResizing;
+  const shouldDisableControls = isAnnotating || isMoveMode || isResizeMode || isRotateMode || isDragging || isResizing || isRotating;
   toggleControls(singleControlsRef, !shouldDisableControls);
   toggleControls(leftControlsRef, !shouldDisableControls);
   toggleControls(rightControlsRef, !shouldDisableControls);
-}, [isAnnotating, isMoveMode, isResizeMode, isDragging, isResizing]);
+}, [isAnnotating, isMoveMode, isResizeMode, isRotateMode, isDragging, isResizing, isRotating]);
 
 // Change cursor when in annotating, move, or resize mode
 useEffect(() => {
-  const setCursor = (element: HTMLElement | null, cursor: string) => {
-    if (element) {
-      element.style.cursor = cursor;
+  const updateCursor = () => {
+    if (isDeleteMode) {
+      document.body.style.cursor = 'pointer';
+    } else if (isRotateMode) {
+      document.body.style.cursor = isRotating ? 'grabbing' : 'grab';
+    } else if (isMoveMode) {
+      document.body.style.cursor = isDragging ? 'grabbing' : 'grab';
+    } else if (isResizeMode) {
+      document.body.style.cursor = isResizing ? 'nw-resize' : 'pointer';
+    } else {
+      document.body.style.cursor = 'default';
     }
   };
 
-  let cursorStyle = 'auto';
-  if (isAnnotating) cursorStyle = 'crosshair';
-  else if (isMoveMode) cursorStyle = isDragging ? 'grabbing' : 'grab';
-  else if (isResizeMode) cursorStyle = isResizing ? 'nw-resize' : 'pointer';
-
-  // For single view
-  setCursor(singleRendererRef.current?.domElement || null, cursorStyle);
-
-  // For split view
-  setCursor(leftRendererRef.current?.domElement || null, cursorStyle);
-  setCursor(rightRendererRef.current?.domElement || null, cursorStyle);
-}, [isAnnotating, isMoveMode, isResizeMode, isDragging, isResizing]);
+  updateCursor();
+  return () => {
+    document.body.style.cursor = 'default';
+  };
+}, [isDeleteMode, isRotateMode, isRotating, isMoveMode, isDragging, isResizeMode, isResizing]);
 
   // ROTATION HANDLER
   const handleRotate = useCallback(() => {
@@ -1153,12 +1162,45 @@ const cleanup = () => {
     const newMoveMode = !isMoveMode;
     setIsMoveMode(newMoveMode);
     if (newMoveMode) {
-      // When entering move mode, exit other modes
+      // Disable other modes when enabling move mode
       setIsAnnotating(false);
       setActiveAnnotationType(null);
       setShowAnnotationMenu(false);
       setIsDeleteMode(false);
       setIsResizeMode(false);
+      setIsRotateMode(false);
+      setContextIsAnnotating(false);
+    }
+  };
+
+  // Handle rotation mode toggle
+  const handleRotateModeToggle = () => {
+    const newRotateMode = !isRotateMode;
+    setIsRotateMode(newRotateMode);
+    if (newRotateMode) {
+      // Disable other modes when enabling rotate mode
+      setIsAnnotating(false);
+      setActiveAnnotationType(null);
+      setShowAnnotationMenu(false);
+      setIsDeleteMode(false);
+      setIsMoveMode(false);
+      setIsResizeMode(false);
+      setContextIsAnnotating(false);
+    }
+  };
+
+  // Handle delete mode toggle
+  const handleDeleteModeToggle = () => {
+    const newDeleteMode = !isDeleteMode;
+    setIsDeleteMode(newDeleteMode);
+    if (newDeleteMode) {
+      // Disable other modes when enabling delete mode
+      setIsAnnotating(false);
+      setActiveAnnotationType(null);
+      setShowAnnotationMenu(false);
+      setIsMoveMode(false);
+      setIsResizeMode(false);
+      setIsRotateMode(false);
       setContextIsAnnotating(false);
     }
   };
@@ -1180,6 +1222,33 @@ const cleanup = () => {
 
   // Mouse event handlers for drawing annotations, moving, and resizing boxes
   const handleMouseDown = (event: MouseEvent) => {
+    // Handle rotation mode
+    if (isRotateMode && !isRotating) {
+      const intersectedAnnotation = getIntersectedAnnotation(event);
+      if (intersectedAnnotation) {
+        setIsRotating(true);
+        setRotatedAnnotation(intersectedAnnotation.annotationId);
+        
+        // Store starting angle and rotation center
+        const worldPosition = getWorldPositionFromMouse(event);
+        if (worldPosition) {
+          const annotation = annotations.find(a => a.id === intersectedAnnotation.annotationId);
+          if (annotation) {
+            const center = annotation.position.clone();
+            setRotationCenter(center);
+            setOriginalRotation(annotation.rotation.clone());
+            
+            // Calculate starting angle from center to mouse position
+            const deltaX = worldPosition.x - center.x;
+            const deltaZ = worldPosition.z - center.z;
+            const startAngle = Math.atan2(deltaZ, deltaX);
+            setRotationStartAngle(startAngle);
+          }
+        }
+        return;
+      }
+    }
+    
     // Handle resize mode
     if (isResizeMode && !isResizing) {
       const intersectedAnnotation = getIntersectedAnnotation(event);
@@ -1187,13 +1256,12 @@ const cleanup = () => {
         setIsResizing(true);
         setResizedAnnotation(intersectedAnnotation.annotationId);
         
-        // Store the starting distance from annotation center and original dimensions
+        // Store starting distance and original dimensions
         const worldPosition = getWorldPositionFromMouse(event);
         if (worldPosition) {
-          const annotation = annotations.find(ann => ann.id === intersectedAnnotation.annotationId);
+          const annotation = annotations.find(a => a.id === intersectedAnnotation.annotationId);
           if (annotation) {
-            const startDistance = worldPosition.distanceTo(annotation.position);
-            setResizeStartDistance(startDistance);
+            setResizeStartDistance(worldPosition.distanceTo(annotation.position));
             setOriginalDimensions(annotation.dimensions.clone());
             setAnnotationCenter(annotation.position.clone());
           }
@@ -1209,10 +1277,10 @@ const cleanup = () => {
         setIsDragging(true);
         setDraggedAnnotation(intersectedAnnotation.annotationId);
         
-        // Calculate offset between mouse position and annotation center
+        // Calculate offset from annotation center to mouse position
         const worldPosition = getWorldPositionFromMouse(event);
         if (worldPosition) {
-          const annotation = annotations.find(ann => ann.id === intersectedAnnotation.annotationId);
+          const annotation = annotations.find(a => a.id === intersectedAnnotation.annotationId);
           if (annotation) {
             const offset = new THREE.Vector3().subVectors(annotation.position, worldPosition);
             setDragOffset(offset);
@@ -1281,6 +1349,30 @@ const cleanup = () => {
   };
   
   const handleMouseMove = (event: MouseEvent) => {
+    // Handle rotation in rotate mode
+    if (isRotateMode && isRotating && rotatedAnnotation && rotationStartAngle !== null && rotationCenter && originalRotation !== null) {
+      const worldPosition = getWorldPositionFromMouse(event);
+      if (worldPosition) {
+        // Calculate angle from rotation center to current mouse position
+        const deltaX = worldPosition.x - rotationCenter.x;
+        const deltaZ = worldPosition.z - rotationCenter.z;
+        const currentAngle = Math.atan2(deltaZ, deltaX);
+        
+        // Calculate rotation delta
+        const rotationDelta = currentAngle - rotationStartAngle;
+        
+        // Apply rotation to original rotation
+        const newRotation = new THREE.Euler(
+          originalRotation.x,
+          originalRotation.y + rotationDelta,
+          originalRotation.z
+        );
+        
+        updateAnnotation(rotatedAnnotation, { rotation: newRotation });
+      }
+      return;
+    }
+    
     // Handle resizing in resize mode
     if (isResizeMode && isResizing && resizedAnnotation && resizeStartDistance !== null && originalDimensions && annotationCenter) {
       const worldPosition = getWorldPositionFromMouse(event);
@@ -1289,8 +1381,6 @@ const cleanup = () => {
         const currentDistance = worldPosition.distanceTo(annotationCenter);
         
         // Calculate scale factor based on distance change from center
-        // If current distance > start distance = scaling up (dragging outward)
-        // If current distance < start distance = scaling down (dragging inward)
         const distanceRatio = currentDistance / resizeStartDistance;
         const scaleFactor = Math.max(0.2, distanceRatio); // Minimum scale of 0.2
         
@@ -1376,17 +1466,23 @@ const cleanup = () => {
   };
   
   const handleMouseUp = () => {
-    // Handle end of resizing in resize mode
+    if (isRotateMode && isRotating) {
+      setIsRotating(false);
+      setRotatedAnnotation(null);
+      setRotationStartAngle(null);
+      setRotationCenter(null);
+      setOriginalRotation(null);
+      return;
+    }
+    
     if (isResizeMode && isResizing) {
       setIsResizing(false);
       setResizedAnnotation(null);
       setResizeStartDistance(null);
-      setOriginalDimensions(null);
       setAnnotationCenter(null);
       return;
     }
     
-    // Handle end of dragging in move mode
     if (isMoveMode && isDragging) {
       setIsDragging(false);
       setDraggedAnnotation(null);
@@ -1426,31 +1522,26 @@ const cleanup = () => {
   };
 
   const handleClick = (event: MouseEvent) => {
-  if (!isAnnotating && !isDeleteMode) return;
+    if (!isAnnotating && !isDeleteMode) return;
 
-  // If we're in drawing mode with an active type, don't handle selection/deletion
-  if (activeAnnotationType && !isDeleteMode) return;
+    // If we're in drawing mode with an active type, don't handle selection/deletion
+    if (activeAnnotationType && !isDeleteMode) return;
 
-  // ... existing code for setting renderer, camera, scene ...
-
-  if (!renderer || !camera || !scene) return;
-
-  // ... existing raycasting code ...
-
-  if (intersects.length > 0) {
-    const clickedId = intersects[0].object.userData.annotationId;
-    
-    if (isDeleteMode) {
-      deleteAnnotation(clickedId);
-      console.log(`Deleted annotation: ${clickedId}`);
-    } else {
-      setSelectedAnnotation(clickedId);
-      setShowAnnotationMenu(true);
-      console.log(`Selected annotation: ${clickedId}`);
+    const intersectedAnnotation = getIntersectedAnnotation(event);
+    if (intersectedAnnotation) {
+      const clickedId = intersectedAnnotation.annotationId;
+      
+      if (isDeleteMode) {
+        deleteAnnotation(clickedId);
+        console.log(`Deleted annotation: ${clickedId}`);
+      } else {
+        setSelectedAnnotation(clickedId);
+        setShowAnnotationMenu(true);
+        console.log(`Selected annotation: ${clickedId}`);
+      }
+    } else if (!isDeleteMode) {
+      setSelectedAnnotation(null);
     }
-  } else if (!isDeleteMode) {
-    setSelectedAnnotation(null);
-  }
 };
 
   // Handle annotation cancel
@@ -1470,16 +1561,6 @@ const handleAnnotationDelete = () => {
     }
   }
 }
-
-const handleDeleteModeToggle = () => {
-  const newDeleteMode = !isDeleteMode;
-  setIsDeleteMode(newDeleteMode);
-  if (newDeleteMode) {
-    setIsAnnotating(false);
-    setActiveAnnotationType(null);
-    setShowAnnotationMenu(false);
-  }
-};
 
   const renderViewModeControls = () => (
     <div className="absolute top-4 right-4 flex flex-col space-y-2 z-50">
@@ -1556,6 +1637,15 @@ const handleDeleteModeToggle = () => {
         >
           <Move className="w-4 h-4 text-gray-300" />
         </button>
+
+        {/* Add Rotation Mode Button */}
+        <button
+          className={`p-2 ${isRotateMode ? "bg-orange-600 border-orange-500" : "bg-black/80 border-gray-700"} hover:bg-black/90 rounded-lg border transition-colors`}
+          onClick={handleRotateModeToggle}
+          title="Toggle Rotation Mode - Rotate annotation boxes"
+        >
+          <RotateCcw className="w-4 h-4 text-gray-300" />
+        </button>
         {/* Add Resize Mode Button */}
         <button
           className={`p-2 ${isResizeMode ? "bg-purple-600 border-purple-500" : "bg-black/80 border-gray-700"} hover:bg-black/90 rounded-lg border transition-colors`}
@@ -1565,14 +1655,15 @@ const handleDeleteModeToggle = () => {
           <Expand className="w-4 h-4 text-gray-300" />
         </button>
         {/* Add Delete Mode Button */}
-        {/* <button
+        <button
           className={`p-2 ${isDeleteMode ? "bg-red-600 border-red-500" : "bg-black/80 border-gray-700"} hover:bg-black/90 rounded-lg border transition-colors`}
           onClick={handleDeleteModeToggle}
-          title="Toggle Delete Mode"
+          title="Toggle Delete Mode - Click on annotation boxes to delete them"
         >
           <Trash2 className="w-4 h-4 text-gray-300" />
-        </button> */}
+        </button>
       </div>
+     
       {/* Annotation Menu */}
       {showAnnotationMenu && (
         <div className="mt-2 bg-black/90 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
