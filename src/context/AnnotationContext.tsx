@@ -20,6 +20,9 @@ export interface AnnotationBox {
   rotation: THREE.Euler;
   color: THREE.Color;
   mesh?: THREE.Mesh; // Reference to the Three.js mesh object
+  frameId: number; // Frame where this annotation was created
+  trackId?: string; // Unique identifier for tracking across frames
+  isTracked?: boolean; // Whether this annotation is tracked from previous frame
 }
 
 // Define annotation context interface
@@ -28,12 +31,16 @@ interface AnnotationContextType {
   selectedAnnotation: string | null;
   activeAnnotationType: AnnotationType | null;
   isAnnotating: boolean;
+  currentFrameId: number;
   addAnnotation: (annotation: Omit<AnnotationBox, 'id' | 'color'>) => void;
   updateAnnotation: (id: string, updates: Partial<AnnotationBox>) => void;
   deleteAnnotation: (id: string) => void;
   selectAnnotation: (id: string | null) => void;
   setActiveAnnotationType: (type: AnnotationType | null) => void;
   setIsAnnotating: (isAnnotating: boolean) => void;
+  setCurrentFrameId: (frameId: number) => void;
+  getAnnotationsForFrame: (frameId: number) => AnnotationBox[];
+  trackAnnotationsToFrame: (targetFrameId: number) => void;
 }
 
 // Create the context
@@ -45,13 +52,17 @@ export const AnnotationProvider: React.FC<{ children: ReactNode }> = ({ children
   const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
   const [activeAnnotationType, setActiveAnnotationType] = useState<AnnotationType | null>(null);
   const [isAnnotating, setIsAnnotating] = useState(false);
+  const [currentFrameId, setCurrentFrameId] = useState<number>(1);
 
   // Add a new annotation
   const addAnnotation = (annotation: Omit<AnnotationBox, 'id' | 'color'>) => {
     const id = `annotation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const color = ANNOTATION_COLORS[annotation.type];
     
-    setAnnotations(prev => [...prev, { ...annotation, id, color }]);
+    // Generate trackId for new annotations (not tracked from previous frames)
+    const trackId = annotation.trackId || `track-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    setAnnotations(prev => [...prev, { ...annotation, id, color, trackId }]);
   };
 
   // Update an existing annotation
@@ -74,6 +85,40 @@ export const AnnotationProvider: React.FC<{ children: ReactNode }> = ({ children
     setSelectedAnnotation(id);
   };
 
+  // Get annotations for a specific frame
+  const getAnnotationsForFrame = (frameId: number): AnnotationBox[] => {
+    return annotations.filter(ann => ann.frameId === frameId);
+  };
+
+  // Track annotations from current frame to target frame
+  const trackAnnotationsToFrame = (targetFrameId: number) => {
+    const currentFrameAnnotations = getAnnotationsForFrame(currentFrameId);
+    const targetFrameAnnotations = getAnnotationsForFrame(targetFrameId);
+    
+    // Find annotations that don't exist in target frame but exist in current frame
+    const annotationsToTrack = currentFrameAnnotations.filter(currentAnn => {
+      return !targetFrameAnnotations.some(targetAnn => targetAnn.trackId === currentAnn.trackId);
+    });
+
+    // Create tracked annotations for target frame
+    const trackedAnnotations = annotationsToTrack.map(ann => ({
+      ...ann,
+      id: `annotation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      frameId: targetFrameId,
+      isTracked: true,
+      // Keep the same position, dimensions, rotation for now (can be enhanced with prediction)
+      position: ann.position.clone(),
+      dimensions: ann.dimensions.clone(),
+      rotation: ann.rotation.clone(),
+      mesh: undefined // Reset mesh reference for new frame
+    }));
+
+    if (trackedAnnotations.length > 0) {
+      setAnnotations(prev => [...prev, ...trackedAnnotations]);
+      console.log(`Tracked ${trackedAnnotations.length} annotations to frame ${targetFrameId}`);
+    }
+  };
+
   return (
     <AnnotationContext.Provider
       value={{
@@ -81,12 +126,16 @@ export const AnnotationProvider: React.FC<{ children: ReactNode }> = ({ children
         selectedAnnotation,
         activeAnnotationType,
         isAnnotating,
+        currentFrameId,
         addAnnotation,
         updateAnnotation,
         deleteAnnotation,
         selectAnnotation,
         setActiveAnnotationType,
         setIsAnnotating,
+        setCurrentFrameId,
+        getAnnotationsForFrame,
+        trackAnnotationsToFrame,
       }}
     >
       {children}

@@ -58,25 +58,30 @@ export const DualCompanyViewer: React.FC<DualCompanyViewerProps> = ({
   const [, forceUpdate] = useState(0)
   
   // Annotation state
-const [isAnnotating, setIsAnnotating] = useState(false)
-const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
-const [isMoveMode, setIsMoveMode] = useState(false)
-const [isResizeMode, setIsResizeMode] = useState(false)
-const [isDeleteMode, setIsDeleteMode] = useState(false)
-const [isRotateMode, setIsRotateMode] = useState(false)
+  const [isAnnotating, setIsAnnotating] = useState(false)
+  const [showAnnotationMenu, setShowAnnotationMenu] = useState(false)
+  const [isMoveMode, setIsMoveMode] = useState(false)
+  const [isResizeMode, setIsResizeMode] = useState(false)
+  const [isDeleteMode, setIsDeleteMode] = useState(false)
+  const [isRotateMode, setIsRotateMode] = useState(false)
   
   // Get annotation context
   const { 
-  annotations,
-  addAnnotation, 
-  updateAnnotation,
-  deleteAnnotation,
-  selectedAnnotation,
-  setSelectedAnnotation,
-  activeAnnotationType, 
-  setActiveAnnotationType,
-  setIsAnnotating: setContextIsAnnotating
-} = useAnnotation()
+    annotations, 
+    addAnnotation, 
+    updateAnnotation, 
+    deleteAnnotation, 
+    selectedAnnotation, 
+    setSelectedAnnotation,
+    activeAnnotationType,
+    setActiveAnnotationType,
+    isAnnotating: contextIsAnnotating,
+    setIsAnnotating: setContextIsAnnotating,
+    currentFrameId,
+    setCurrentFrameId,
+    getAnnotationsForFrame,
+    trackAnnotationsToFrame
+  } = useAnnotation()
   
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false)
@@ -187,12 +192,42 @@ const [isRotateMode, setIsRotateMode] = useState(false)
         }
       });
 
-      // Add new meshes for each annotation
-      annotations.forEach((ann) => {
+      // Add new meshes for annotations in the current frame only
+      const currentFrameAnnotations = getAnnotationsForFrame(frameId);
+      currentFrameAnnotations.forEach((ann) => {
         const mesh = createBoundingBoxMesh(ann.position, ann.dimensions, ann.rotation, ann.type);
         mesh.userData.isAnnotation = true;
         mesh.userData.annotationId = ann.id;
+        mesh.userData.isTracked = ann.isTracked || false;
+        mesh.userData.trackId = ann.trackId;
+        
+        // Add visual indicator for tracked annotations
+        if (ann.isTracked) {
+          // Make tracked annotations slightly transparent and add a glow effect
+          if (mesh.material instanceof THREE.MeshBasicMaterial) {
+            mesh.material.transparent = true;
+            mesh.material.opacity = 0.8;
+          }
+          
+          // Add a wireframe overlay for tracked annotations
+          const wireframeGeometry = mesh.geometry.clone();
+          const wireframeMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+          });
+          const wireframeMesh = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
+          wireframeMesh.position.copy(mesh.position);
+          wireframeMesh.rotation.copy(mesh.rotation);
+          wireframeMesh.scale.copy(mesh.scale);
+          scene.add(wireframeMesh);
+        }
+        
         scene.add(mesh);
+        
+        // Store the mesh reference in the annotation
+        updateAnnotation(ann.id, { mesh });
       });
     };
 
@@ -353,12 +388,50 @@ useEffect(() => {
   }, [serialNumber, viewMode])
 
   useEffect(() => {
-    if (!mountRef.current && !leftMountRef.current && !rightMountRef.current) return
+    if (currentFrameId !== frameId) {
+      // Track annotations from current frame to new frame
+      if (currentFrameId > 0) {
+        trackAnnotationsToFrame(frameId);
+      }
+      setCurrentFrameId(frameId);
+    }
+  }, [frameId, currentFrameId, setCurrentFrameId, trackAnnotationsToFrame]);
 
-    setIsLoading(true)
-    setImageLoaded({})
-    setImageErrors({}) // Reset image error state on serial/view change
-    setLoadingProgress({})
+  useEffect(() => {
+    if (!serialNumber) return
+
+    const cleanup = () => {
+      // Clean up existing scenes and renderers
+      if (leftSceneRef.current) {
+        leftSceneRef.current.clear()
+      }
+      if (rightSceneRef.current) {
+        rightSceneRef.current.clear()
+      }
+      if (singleSceneRef.current) {
+        singleSceneRef.current.clear()
+      }
+      
+      // Dispose of renderers
+      if (leftRendererRef.current) {
+        leftRendererRef.current.dispose()
+        leftRendererRef.current = null
+      }
+      if (rightRendererRef.current) {
+        rightRendererRef.current.dispose()
+        rightRendererRef.current = null
+      }
+      if (singleRendererRef.current) {
+        singleRendererRef.current.dispose()
+        singleRendererRef.current = null
+      }
+
+      // Cancel any ongoing animation
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
+    }
 
     // Load images for the current frame using the new API endpoint
     const loadImages = async () => {
@@ -380,10 +453,8 @@ useEffect(() => {
           const emptyImages = {
             front: '',
             back: '',
-            'front-right': '',
-            'front-left': '',
-            'back-right': '',
-            'back-left': '',
+            left: '',
+            right: ''
           };
           setImageUrls(emptyImages);
         }
@@ -392,21 +463,17 @@ useEffect(() => {
         const emptyImages = {
           front: '',
           back: '',
-          'front-right': '',
-          'front-left': '',
-          'back-right': '',
-          'back-left': '',
+          left: '',
+          right: ''
         };
         setImageUrls(emptyImages);
       }
     };
 
-    loadImages();
-
     if (showPointCloud) {
       initializeDualVisualization()
     } else {
-      setTimeout(() => setIsLoading(false), 500)
+      loadImages()
     }
 
     return () => {
@@ -1513,7 +1580,8 @@ const cleanup = () => {
       type: activeAnnotationType,
       position: finalPosition,
       dimensions: finalDimensions,
-      rotation: new THREE.Euler(0, 0, 0)
+      rotation: new THREE.Euler(0, 0, 0),
+      frameId: frameId
     });
     
     // Reset drawing state
@@ -1726,6 +1794,16 @@ const handleAnnotationDelete = () => {
         <div className="flex items-center justify-between">
           <span className="text-gray-400">Frame:</span>
           <span className="text-green-400 font-medium">{frameId}/30</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400">Annotations:</span>
+          <span className="text-blue-400 font-medium">{getAnnotationsForFrame(frameId).length}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400">Tracked:</span>
+          <span className="text-orange-400 font-medium">
+            {getAnnotationsForFrame(frameId).filter(ann => ann.isTracked).length}
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-gray-400">View Mode:</span>
